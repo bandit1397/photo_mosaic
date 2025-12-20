@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<title>Rectangle Mosaic Tool - OK Undo/Redo/Reset</title>
+
+<style>
+  body{ font-family:sans-serif; padding:20px; }
+  #canvas{ border:1px solid #ccc; cursor:crosshair; }
+  .control{ margin:10px 0; }
+  button{ margin-right:10px; }
+</style>
+</head>
+
+<body>
+
+<h2>사각형 드래그 모자이크 (ROI 박스 숨김)</h2>
+
+<input type="file" id="upload" accept="image/*">
+
+<div class="control">
+  모자이크 강도 :
+  <input id="rate" type="range" min="3" max="40" value="15">
+  <span id="rateValue">15</span>
+</div>
+
+<button onclick="saveImage()">저장</button>
+<button onclick="undo()">Undo</button>
+<button onclick="redo()">Redo</button>
+<button onclick="resetImage()">처음으로</button>
+
+<br><br>
+
+<canvas id="canvas"></canvas>
+
+<script>
+
+let img = new Image();
+let canvas = document.getElementById("canvas");
+let ctx = canvas.getContext("2d");
+
+let rate = 15;
+
+let startX, startY;
+let dragging = false;
+
+// history 저장
+let undoStack = [];
+let redoStack = [];
+
+// 최초 업로드 이미지 기록
+let baseImage = null;
+
+
+// =========================================
+// 파일 업로드
+// =========================================
+document.getElementById("upload").addEventListener("change", e=>{
+  img.src = URL.createObjectURL(e.target.files[0]);
+  img.onload = ()=>{
+
+    canvas.width = img.width;
+    canvas.height = img.height;
+
+    ctx.drawImage(img,0,0);
+
+    baseImage = canvas.toDataURL();
+
+    clearHistory();
+    pushUndo();   
+  };
+});
+
+
+// =========================================
+// 슬라이더
+// =========================================
+document.getElementById("rate").addEventListener("input", function(){
+  rate = Number(this.value);
+  document.getElementById("rateValue").innerText = rate;
+});
+
+
+// =========================================
+// 드래그 시작
+// =========================================
+canvas.addEventListener("mousedown", e=>{
+
+  const rect = canvas.getBoundingClientRect();
+  startX = e.clientX - rect.left;
+  startY = e.clientY - rect.top;
+
+  dragging = true;
+
+});
+
+
+// =========================================
+// 드래그 중 ROI 표시 제거 버전
+// =========================================
+canvas.addEventListener("mousemove", e=>{
+  if(!dragging) return;
+  // 아무 표시 없음
+});
+
+
+// =========================================
+// 드롭 → 모자이크 실행
+// =========================================
+canvas.addEventListener("mouseup", e=>{
+
+  if(!dragging) return;
+  dragging = false;
+
+  const rect = canvas.getBoundingClientRect();
+
+  let endX = e.clientX - rect.left;
+  let endY = e.clientY - rect.top;
+
+  let x = Math.min(startX, endX);
+  let y = Math.min(startY, endY);
+
+  let w = Math.abs(endX - startX);
+  let h = Math.abs(endY - startY);
+
+  if(w<5 || h<5) return;
+
+  let sub = ctx.getImageData(x,y,w,h);
+  let temp = document.createElement("canvas");
+  temp.width = w;
+  temp.height = h;
+  let tctx = temp.getContext("2d");
+
+  tctx.putImageData(sub,0,0);
+  tctx.drawImage(temp,0,0,w/rate,h/rate);
+  tctx.drawImage(temp,0,0,w/rate,h/rate,0,0,w,h);
+
+  ctx.drawImage(temp,x,y);
+
+  pushUndo();
+
+});
+
+
+// =========================================
+// History 관리
+// =========================================
+function pushUndo(){
+  undoStack.push(canvas.toDataURL());
+  redoStack = [];
+}
+
+function undo(){
+  if(undoStack.length <= 1) return;
+
+  redoStack.push(undoStack.pop());
+
+  applyFrom(undoStack[undoStack.length-1]);
+}
+
+function redo(){
+  if(redoStack.length === 0) return;
+
+  let data = redoStack.pop();
+  undoStack.push(data);
+
+  applyFrom(data);
+}
+
+function applyFrom(src){
+  let image = new Image();
+  image.src = src;
+  image.onload = ()=>{
+    ctx.drawImage(image,0,0);
+  };
+}
+
+function clearHistory(){
+  undoStack=[];
+  redoStack=[];
+}
+
+
+// =========================================
+// Reset (처음 이미지로)
+// =========================================
+function resetImage(){
+
+  if(!baseImage) return;
+
+  applyFrom(baseImage);
+
+  clearHistory();
+  pushUndo();
+}
+
+
+// =========================================
+// 저장
+// =========================================
+function saveImage(){
+  const link = document.createElement("a");
+  link.download = "mosaic.png";
+  link.href = canvas.toDataURL();
+  link.click();
+}
+
+
+// =========================================
+// 단축키
+// =========================================
+document.addEventListener("keydown", function(e){
+  if(e.ctrlKey && e.key==="z") undo();
+  if(e.ctrlKey && e.key==="y") redo();
+});
+
+</script>
+
+</body>
+</html>
