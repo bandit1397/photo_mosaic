@@ -14,7 +14,7 @@
 
 <body>
 
-<h2>사각형 드래그 모자이크 (완전 Undo/Redo/Reset)</h2>
+<h2>사각형 드래그 모자이크 (ROI 박스 숨김)</h2>
 
 <input type="file" id="upload" accept="image/*">
 
@@ -64,11 +64,10 @@ document.getElementById("upload").addEventListener("change", e=>{
 
     ctx.drawImage(img,0,0);
 
-    // baseImage 보존
     baseImage = canvas.toDataURL();
 
     clearHistory();
-    pushUndo();   // 최초 저장
+    pushUndo();   
   };
 });
 
@@ -97,29 +96,11 @@ canvas.addEventListener("mousedown", e=>{
 
 
 // =========================================
-// 드래그 박스 미리보기
+// 드래그 중 ROI 표시 제거 버전
 // =========================================
-let previewImage=null;
-
 canvas.addEventListener("mousemove", e=>{
-
   if(!dragging) return;
-
-  const rect = canvas.getBoundingClientRect();
-
-  if(!previewImage){
-    previewImage = ctx.getImageData(0,0,canvas.width,canvas.height);
-  }
-
-  ctx.putImageData(previewImage,0,0);
-
-  const w = (e.clientX - rect.left) - startX;
-  const h = (e.clientY - rect.top) - startY;
-
-  ctx.strokeStyle = "red";
-  ctx.lineWidth = 2;
-  ctx.strokeRect(startX,startY,w,h);
-
+  // 아무 표시 없음
 });
 
 
@@ -129,10 +110,7 @@ canvas.addEventListener("mousemove", e=>{
 canvas.addEventListener("mouseup", e=>{
 
   if(!dragging) return;
-
   dragging = false;
-
-  previewImage=null;
 
   const rect = canvas.getBoundingClientRect();
 
@@ -147,7 +125,6 @@ canvas.addEventListener("mouseup", e=>{
 
   if(w<5 || h<5) return;
 
-  // mosaic
   let sub = ctx.getImageData(x,y,w,h);
   let temp = document.createElement("canvas");
   temp.width = w;
