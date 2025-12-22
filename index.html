@@ -88,6 +88,9 @@ let blocks  = [];
 
 let rate = 15;
 
+const rateSlider  = document.getElementById("rate");
+const rateValue   = document.getElementById("rateValue");
+
 
 // ==================================================
 // 이미지 업로드
@@ -120,11 +123,12 @@ document.getElementById("upload").addEventListener("change", e=>{
 
 
 // ==================================================
-// 슬라이더 – 즉시 재적용
+// 슬라이더 – 즉시 숫자출력 및 모자이크 강도 반영
 // ==================================================
-rate.oninput = ()=>{
+rateSlider.oninput = ()=>{
 
-  rate = Number(rate.value);
+  rate = Number(rateSlider.value);
+
   rateValue.innerText = rate;
 
   redrawAll(true);
