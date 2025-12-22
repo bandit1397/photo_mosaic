@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Mobile Mosaic Tool - Rate 1~40</title>
+<title>Mobile Mosaic Tool - 실시간 강도 변경</title>
 
 <style>
 body{
@@ -76,6 +76,11 @@ let undoStack = [];
 let redoStack = [];
 let baseImage = null;
 
+// 선택 영역 저장
+let selectedAreas = []; // {left, top, width, height}
+
+// DOM
+const rateSlider = document.getElementById("rate");
 const rateValue = document.getElementById("rateValue");
 
 // ============================
@@ -88,14 +93,16 @@ document.getElementById("upload").addEventListener("change", e=>{
     let w = img.width;
     let h = img.height;
 
-    if(w > MAX){ h = h * (MAX/w); w = MAX; }
-    if(h > MAX){ w = w * (MAX/h); h = MAX; }
+    if(w>MAX){ h=h*(MAX/w); w=MAX; }
+    if(h>MAX){ w=w*(MAX/h); h=MAX; }
 
-    canvas.width = w;
-    canvas.height = h;
+    canvas.width=w;
+    canvas.height=h;
     ctx.drawImage(img,0,0,w,h);
 
     baseImage = canvas.toDataURL();
+    selectedAreas=[];
+
     clearHistory();
     pushUndo();
   };
@@ -104,9 +111,10 @@ document.getElementById("upload").addEventListener("change", e=>{
 // ============================
 // 슬라이더
 // ============================
-document.getElementById("rate").addEventListener("input", function(){
+rateSlider.addEventListener("input", function(){
   rate = Number(this.value);
-  rateValue.innerText = rate; // 숫자 즉시 반영
+  rateValue.innerText = rate;
+  redrawAllMosaic();
 });
 
 // ============================
@@ -141,7 +149,7 @@ function registerPoint(x,y){
 }
 
 // ============================
-// Grid 모자이크
+// 모자이크 적용
 // ============================
 function mosaic(){
   let xs = touches.map(p=>p.x);
@@ -154,23 +162,43 @@ function mosaic(){
   let h = bottom-top;
   if(w<5||h<5) return;
 
-  let imageData = ctx.getImageData(left,top,w,h);
-  let tempCanvas = document.createElement("canvas");
-  tempCanvas.width=w; tempCanvas.height=h;
-  let tctx = tempCanvas.getContext("2d");
-  tctx.putImageData(imageData,0,0);
+  let area = {left, top, width:w, height:h};
+  selectedAreas.push(area);
 
-  let cell = rate;
-  for(let i=0;i<w;i+=cell){
-    for(let j=0;j<h;j+=cell){
-      let px = tctx.getImageData(i,j,1,1);
-      let r = px.data[0], g = px.data[1], b = px.data[2];
-      tctx.fillStyle = `rgb(${r},${g},${b})`;
-      tctx.fillRect(i,j,cell,cell);
-    }
-  }
-  ctx.drawImage(tempCanvas,left,top);
+  applyMosaic(area);
   pushUndo();
+}
+
+function applyMosaic(area){
+  const {left, top, width, height} = area;
+  let imgObj = new Image();
+  imgObj.src = baseImage;
+  imgObj.onload = ()=>{
+    let tempCanvas = document.createElement("canvas");
+    tempCanvas.width = width;
+    tempCanvas.height = height;
+    let tctx = tempCanvas.getContext("2d");
+    tctx.drawImage(imgObj, left, top, width, height, 0, 0, width, height);
+
+    let cell = rate;
+    for(let i=0;i<width;i+=cell){
+      for(let j=0;j<height;j+=cell){
+        let px = tctx.getImageData(i,j,1,1);
+        let r=px.data[0], g=px.data[1], b=px.data[2];
+        tctx.fillStyle=`rgb(${r},${g},${b})`;
+        tctx.fillRect(i,j,cell,cell);
+      }
+    }
+
+    ctx.drawImage(tempCanvas, left, top);
+  };
+}
+
+// 전체 모자이크 다시 그리기
+function redrawAllMosaic(){
+  if(!baseImage) return;
+  apply(baseImage); // 원본 초기화
+  selectedAreas.forEach(area=>applyMosaic(area));
 }
 
 // ============================
@@ -185,7 +213,13 @@ function clearHistory(){ undoStack=[]; redoStack=[]; }
 // ============================
 // reset
 // ============================
-function resetImage(){ if(!baseImage) return; apply(baseImage); clearHistory(); pushUndo(); }
+function resetImage(){ 
+  if(!baseImage) return; 
+  apply(baseImage); 
+  selectedAreas=[];
+  clearHistory(); 
+  pushUndo(); 
+}
 
 // ============================
 // 저장
@@ -195,8 +229,11 @@ function saveImage(){ let link=document.createElement("a"); link.download="mosai
 // ============================
 // 단축키
 // ============================
-document.addEventListener("keydown", e=>{ if(e.ctrlKey && e.key==="z") undo(); if(e.ctrlKey && e.key==="y") redo(); });
-</script>
+document.addEventListener("keydown", e=>{
+  if(e.ctrlKey && e.key==="z") undo();
+  if(e.ctrlKey && e.key==="y") redo();
+});
 
+</script>
 </body>
 </html>
