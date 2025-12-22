@@ -2,18 +2,22 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Mobile 4-Point Mosaic</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Android Mosaic</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 <style>
-body{
+html,body{
   margin:0;
+  padding:0;
   background:black;
+  height:100%;
   overflow:hidden;
+  touch-action:none;
 }
-canvas{
+#c{
+  display:block;
   width:100vw;
-  height:auto;
+  height:100vh;
   touch-action:none;
 }
 </style>
@@ -26,40 +30,52 @@ canvas{
 <script>
 
 let canvas = document.getElementById("c");
-let ctx = canvas.getContext("2d");
+let ctx = canvas.getContext("2d",{willReadFrequently:true});
 
 let img = new Image();
-img.src = "test.jpg"; // 변경
+img.src = "test.jpg";   // ← 여기에 본인 파일명 입력
 
-let points = [];
+let points=[];
 let mosaicRate = 12;
+let imgRatio = 0;
 
-function fitCanvas(){
-  let ratio = img.width / img.height;
+function resizeCanvas(){
+
   canvas.width = window.innerWidth;
-  canvas.height = window.innerWidth / ratio;
+  canvas.height = window.innerHeight;
+
+  if(imgRatio===0) return;
+
+  let drawH = canvas.width / imgRatio;
+
+  if(drawH > canvas.height){
+      drawH = canvas.height;
+      canvas.width = drawH * imgRatio;
+  }
+
+  canvas.height = drawH;
   ctx.drawImage(img,0,0,canvas.width,canvas.height);
 }
-  
-img.onload = ()=>{ fitCanvas(); }
 
-window.addEventListener("orientationchange",()=>{
-  setTimeout(fitCanvas,300);
+img.onload = ()=>{
+  imgRatio = img.width / img.height;
+  resizeCanvas();
+}
+
+window.addEventListener("resize",()=>{
+  resizeCanvas();
 });
 
-function getXY(e){
+window.addEventListener("orientationchange",()=>{
+  setTimeout(resizeCanvas,600);
+});
+
+function getXYTouch(e){
 
   let rect = canvas.getBoundingClientRect();
-  
-  let x,y;
 
-  if(e.touches){
-    x = e.touches[0].clientX - rect.left;
-    y = e.touches[0].clientY - rect.top;
-  } else {
-    x = e.clientX - rect.left;
-    y = e.clientY - rect.top;
-  }
+  let x = e.touches[0].clientX - rect.left;
+  let y = e.touches[0].clientY - rect.top;
 
   x = x * (canvas.width / rect.width);
   y = y * (canvas.height / rect.height);
@@ -67,54 +83,48 @@ function getXY(e){
   return {x,y};
 }
 
-function addPoint(x,y){
+function addPointXY(x,y){
 
   points.push({x,y});
 
-  if(points.length === 4){
-    processMosaic();
-    points=[];
+  if(points.length===4){
+      applyMosaic();
+      points=[];
   }
 }
 
-function processMosaic(){
+function applyMosaic(){
 
   let minX = Math.min(...points.map(p=>p.x));
   let minY = Math.min(...points.map(p=>p.y));
   let maxX = Math.max(...points.map(p=>p.x));
   let maxY = Math.max(...points.map(p=>p.y));
 
-  let w = maxX-minX;
-  let h = maxY-minY;
+  let w = maxX - minX;
+  let h = maxY - minY;
 
   if(w<5 || h<5) return;
 
-  let imgData = ctx.getImageData(minX,minY,w,h);
+  let sub = ctx.getImageData(minX,minY,w,h);
 
-  let temp = document.createElement("canvas");
-  temp.width = w;
-  temp.height = h;
+  let tmp = document.createElement("canvas");
+  tmp.width = w;
+  tmp.height = h;
 
-  let tctx = temp.getContext("2d");
-  tctx.putImageData(imgData,0,0);
+  let tctx = tmp.getContext("2d");
+  tctx.putImageData(sub,0,0);
 
-  tctx.drawImage(temp,0,0,w/mosaicRate,h/mosaicRate);
-  tctx.drawImage(temp,0,0,w/mosaicRate,h/mosaicRate,0,0,w,h);
+  tctx.drawImage(tmp,0,0,w/mosaicRate,h/mosaicRate);
+  tctx.drawImage(tmp,0,0,w/mosaicRate,h/mosaicRate,0,0,w,h);
 
-  ctx.drawImage(temp,minX,minY);
-
+  ctx.drawImage(tmp,minX,minY);
 }
-
-canvas.addEventListener("click",e=>{
-  let p=getXY(e);
-  addPoint(p.x,p.y);
-});
 
 canvas.addEventListener("touchstart",e=>{
   e.preventDefault();
-  let p=getXY(e);
-  addPoint(p.x,p.y);
-});
+  let p=getXYTouch(e);
+  addPointXY(p.x,p.y);
+},{passive:false});
 
 </script>
 </body>
