@@ -2,19 +2,69 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8"/>
-<title>Rectangle Mosaic Tool - OK Undo/Redo/Reset</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+
+<title>Rectangle Mosaic Tool - Responsive</title>
 
 <style>
-  body{ font-family:sans-serif; padding:20px; }
-  #canvas{ border:1px solid #ccc; cursor:crosshair; }
-  .control{ margin:10px 0; }
-  button{ margin-right:10px; }
+
+  body {
+    font-family:sans-serif;
+    margin:0;
+    padding:0;
+    background:#f2f2f2;
+    display:flex;
+    justify-content:center;
+    align-items:flex-start;
+    min-height:100vh;
+  }
+
+  .wrapper {
+    background:white;
+    padding:20px;
+    margin-top:30px;
+    border-radius:10px;
+    box-shadow:0 0 10px rgba(0,0,0,0.1);
+    width:95%;
+    max-width:900px;
+    text-align:center;
+  }
+
+  h2 { margin-top:0; }
+
+  #canvas {
+    border:1px solid #ccc;
+    cursor:crosshair;
+    max-width:100%;
+    height:auto;
+  }
+
+  .control {
+    margin:15px 0;
+  }
+
+  button{
+    margin:5px;
+    padding:10px 14px;
+    font-size:14px;
+  }
+
+  @media(max-width:500px){
+
+    button{
+      width:46%;
+    }
+
+  }
+
 </style>
 </head>
 
 <body>
 
-<h2>사각형 드래그 모자이크 (ROI 박스 숨김)</h2>
+<div class="wrapper">
+
+<h2>비식별화(모자이크)</h2>
 
 <input type="file" id="upload" accept="image/*">
 
@@ -33,6 +83,8 @@
 
 <canvas id="canvas"></canvas>
 
+</div>
+
 <script>
 
 let img = new Image();
@@ -40,15 +92,11 @@ let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d");
 
 let rate = 15;
-
 let startX, startY;
 let dragging = false;
 
-// history 저장
 let undoStack = [];
 let redoStack = [];
-
-// 최초 업로드 이미지 기록
 let baseImage = null;
 
 
@@ -96,11 +144,10 @@ canvas.addEventListener("mousedown", e=>{
 
 
 // =========================================
-// 드래그 중 ROI 표시 제거 버전
+// 드래그 중 ROI 표시 없음
 // =========================================
 canvas.addEventListener("mousemove", e=>{
   if(!dragging) return;
-  // 아무 표시 없음
 });
 
 
@@ -143,7 +190,7 @@ canvas.addEventListener("mouseup", e=>{
 
 
 // =========================================
-// History 관리
+// 히스토리 저장
 // =========================================
 function pushUndo(){
   undoStack.push(canvas.toDataURL());
@@ -154,7 +201,6 @@ function undo(){
   if(undoStack.length <= 1) return;
 
   redoStack.push(undoStack.pop());
-
   applyFrom(undoStack[undoStack.length-1]);
 }
 
@@ -163,7 +209,6 @@ function redo(){
 
   let data = redoStack.pop();
   undoStack.push(data);
-
   applyFrom(data);
 }
 
@@ -182,7 +227,7 @@ function clearHistory(){
 
 
 // =========================================
-// Reset (처음 이미지로)
+// Reset
 // =========================================
 function resetImage(){
 
