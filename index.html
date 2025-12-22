@@ -4,7 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 
-<title>Mobile Mosaic Tool</title>
+<title>Mobile Mosaic Tool - Rate 1~40</title>
 
 <style>
   body{
@@ -46,7 +46,6 @@
   @media(max-width:500px){
     button{width:46%;}
   }
-
 </style>
 </head>
 
@@ -60,7 +59,7 @@
 
 <div class="control">
   모자이크 강도 :
-  <input id="rate" type="range" min="3" max="40" value="15">
+  <input id="rate" type="range" min="1" max="40" value="15">
   <span id="rateValue">15</span>
 </div>
 
@@ -75,32 +74,24 @@
 
 </div>
 
-
 <script>
-
 let img = new Image();
 let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d");
 
 let rate = 15;
-let touches = [];  
-
+let touches = [];
 let undoStack = [];
 let redoStack = [];
 let baseImage = null;
-
 
 // ============================
 // 이미지 업로드
 // ============================
 document.getElementById("upload").addEventListener("change", e=>{
-
   img.src = URL.createObjectURL(e.target.files[0]);
-
   img.onload = ()=>{
-
     const MAX = 1500;
-
     let w = img.width;
     let h = img.height;
 
@@ -115,7 +106,6 @@ document.getElementById("upload").addEventListener("change", e=>{
 
     canvas.width = w;
     canvas.height = h;
-
     ctx.drawImage(img, 0, 0, w, h);
 
     baseImage = canvas.toDataURL();
@@ -125,7 +115,6 @@ document.getElementById("upload").addEventListener("change", e=>{
   };
 });
 
-
 // ============================
 // 슬라이더
 // ============================
@@ -134,70 +123,53 @@ rate.oninput = function(){
   rateValue.innerText = rate;
 };
 
-
 // ============================
-// PC 클릭 좌표 등록
+// 좌표 등록
 // ============================
 canvas.addEventListener("click", e => {
-
   const r = canvas.getBoundingClientRect();
-
-  let scaleX = canvas.width  / r.width;
+  let scaleX = canvas.width / r.width;
   let scaleY = canvas.height / r.height;
 
   let x = (e.clientX - r.left) * scaleX;
-  let y = (e.clientY - r.top ) * scaleY;
+  let y = (e.clientY - r.top) * scaleY;
 
-  register(x,y);
+  registerPoint(x,y);
 });
 
-
-// ============================
-// 모바일 터치 좌표 등록
-// ============================
 canvas.addEventListener("touchstart", e => {
-
   const r = canvas.getBoundingClientRect();
   let t = e.touches[0];
 
-  let scaleX = canvas.width  / r.width;
+  let scaleX = canvas.width / r.width;
   let scaleY = canvas.height / r.height;
 
   let x = (t.clientX - r.left) * scaleX;
-  let y = (t.clientY - r.top ) * scaleY;
+  let y = (t.clientY - r.top) * scaleY;
 
-  register(x,y);
+  registerPoint(x,y);
 
   e.preventDefault();
-
 },{passive:false});
 
-
-// ============================
-// 좌표 저장
-// ============================
-function register(x,y){
-
+function registerPoint(x,y){
   touches.push({x,y});
-
   if(touches.length === 4){
     mosaic();
     touches=[];
   }
 }
 
-
 // ============================
-// 모자이크 실행
+// Grid 기반 모자이크
 // ============================
 function mosaic(){
+  let xs = touches.map(p=>p.x);
+  let ys = touches.map(p=>p.y);
 
-  let xs = touches.map(a=>a.x);
-  let ys = touches.map(a=>a.y);
-
-  let left   = Math.min(...xs);
-  let right  = Math.max(...xs);
-  let top    = Math.min(...ys);
+  let left = Math.min(...xs);
+  let right = Math.max(...xs);
+  let top = Math.min(...ys);
   let bottom = Math.max(...ys);
 
   let w = right - left;
@@ -205,26 +177,27 @@ function mosaic(){
 
   if(w<5 || h<5) return;
 
-  let sub = ctx.getImageData(left, top, w, h);
+  let imageData = ctx.getImageData(left, top, w, h);
+  let tempCanvas = document.createElement("canvas");
+  tempCanvas.width = w;
+  tempCanvas.height = h;
+  let tctx = tempCanvas.getContext("2d");
+  tctx.putImageData(imageData,0,0);
 
-  let temp = document.createElement("canvas");
-  temp.width = w;
-  temp.height = h;
+  // Grid 모자이크 적용 (rate = cell size)
+  let cell = rate;
+  for(let i=0; i<w; i+=cell){
+    for(let j=0; j<h; j+=cell){
+      let px = tctx.getImageData(i,j,1,1);
+      let r = px.data[0], g = px.data[1], b = px.data[2];
+      tctx.fillStyle = `rgb(${r},${g},${b})`;
+      tctx.fillRect(i,j,cell,cell);
+    }
+  }
 
-  let tctx = temp.getContext("2d");
-  tctx.putImageData(sub,0,0);
-
-  let rw = Math.max(1, Math.floor(w / rate));
-  let rh = Math.max(1, Math.floor(h / rate));
-
-  tctx.drawImage(temp,0,0,rw,rh);
-  tctx.drawImage(temp,0,0,rw,rh,0,0,w,h);
-
-  ctx.drawImage(temp,left,top);
-
+  ctx.drawImage(tempCanvas,left,top);
   pushUndo();
 }
-
 
 // ============================
 // 히스토리
@@ -235,29 +208,22 @@ function pushUndo(){
 }
 
 function undo(){
-
-  if(undoStack.length <= 1) return;
-
+  if(undoStack.length<=1) return;
   redoStack.push(undoStack.pop());
   apply(undoStack.at(-1));
 }
 
 function redo(){
-
-  if(redoStack.length === 0) return;
-
+  if(redoStack.length===0) return;
   let data = redoStack.pop();
   undoStack.push(data);
   apply(data);
 }
 
 function apply(src){
-
   let image = new Image();
   image.src = src;
-  image.onload = ()=>{
-    ctx.drawImage(image,0,0);
-  };
+  image.onload = ()=> ctx.drawImage(image,0,0);
 }
 
 function clearHistory(){
@@ -265,20 +231,15 @@ function clearHistory(){
   redoStack=[];
 }
 
-
 // ============================
 // reset
 // ============================
 function resetImage(){
-
   if(!baseImage) return;
-
   apply(baseImage);
-
   clearHistory();
   pushUndo();
 }
-
 
 // ============================
 // 저장
@@ -290,15 +251,13 @@ function saveImage(){
   link.click();
 }
 
-
 // ============================
-// ctrl + z , ctrl + y
+// 단축키
 // ============================
 document.addEventListener("keydown", e=>{
   if(e.ctrlKey && e.key==="z") undo();
   if(e.ctrlKey && e.key==="y") redo();
 });
-
 </script>
 
 </body>
