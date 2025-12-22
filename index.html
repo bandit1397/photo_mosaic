@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Mobile Mosaic – FULL System</title>
+<title>Mobile Mosaic – FIXED</title>
 
 <style>
 body{
@@ -72,29 +72,27 @@ button{ width:46%; }
 
 </div>
 
+<!-- SCRIPT -->
 <script>
 
 let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d");
 let img  = new Image();
 
-let undoStack = [];
-let redoStack = [];
+let original = null;       
+let undoStack=[];
+let redoStack=[];
 
 let touches = [];
 let blocks  = [];
 
 let rate = 15;
 
-let originalImage = null;
-
 const rateSlider  = document.getElementById("rate");
 const rateValue   = document.getElementById("rateValue");
 
 
-// ======================================================
-// 업로드
-// ======================================================
+// ==================================================
 document.getElementById("upload").addEventListener("change", e=>{
 
   img.src = URL.createObjectURL(e.target.files[0]);
@@ -113,34 +111,30 @@ document.getElementById("upload").addEventListener("change", e=>{
 
     ctx.drawImage(img,0,0,w,h);
 
-    originalImage = canvas.toDataURL(); // 진짜 원본 저장
+    original = ctx.getImageData(0,0,w,h);
 
-    blocks = [];
+    blocks=[];
     clearHistory();
     pushUndo();
   };
 });
 
 
-// ======================================================
-// 강도 변경 → 기존 모자이크 재계산
-// ======================================================
+// ==================================================
 rateSlider.oninput = ()=>{
 
   rate = Number(rateSlider.value);
   rateValue.innerText = rate;
 
-  redrawBlocksOnly();  // ★ 핵심 기능
+  redrawFromOriginal();
 };
 
 
-
-// ======================================================
-// 4점 등록
-// ======================================================
+// ==================================================
 canvas.addEventListener("click", e=>{
 
   const r = canvas.getBoundingClientRect();
+
   let x=(e.clientX-r.left)*(canvas.width/r.width);
   let y=(e.clientY-r.top)*(canvas.height/r.height);
 
@@ -148,6 +142,7 @@ canvas.addEventListener("click", e=>{
 });
 
 canvas.addEventListener("touchstart", e=>{
+
   const r = canvas.getBoundingClientRect();
   let t = e.touches[0];
 
@@ -160,8 +155,7 @@ canvas.addEventListener("touchstart", e=>{
 },{passive:false});
 
 
-
-// ======================================================
+// ==================================================
 function register(x,y){
 
   touches.push({x,y});
@@ -173,8 +167,7 @@ function register(x,y){
 }
 
 
-
-// ======================================================
+// ==================================================
 function createBlock(){
 
   let xs = touches.map(a=>a.x);
@@ -192,34 +185,23 @@ function createBlock(){
 
   blocks.push({left,top,w,h});
 
-  redrawBlocksOnly();
+  redrawFromOriginal();
   pushUndo();
 }
 
 
+// ==================================================
+function redrawFromOriginal(){
 
-// ======================================================
-// 원본 적용 후 모자이크 전체 다시 그리기
-// ======================================================
-function redrawBlocksOnly(){
+  ctx.putImageData(original,0,0);
 
-  // 원본 복구
-  let im = new Image();
-  im.src = originalImage;
-  im.onload = ()=>{
-
-    ctx.drawImage(im,0,0);
-
-    blocks.forEach(b=>{
-      mosaic(b.left,b.top,b.w,b.h);
-    });
-
-  }
+  blocks.forEach(b=>{
+    mosaic(b.left,b.top,b.w,b.h);
+  });
 }
 
 
-
-// ======================================================
+// ==================================================
 function mosaic(left,top,w,h){
 
   let cell = rate;
@@ -245,10 +227,7 @@ function mosaic(left,top,w,h){
 }
 
 
-
-// ======================================================
-// Undo / Redo
-// ======================================================
+// ==================================================
 function pushUndo(){
   undoStack.push(canvas.toDataURL());
   redoStack=[];
@@ -258,7 +237,8 @@ function undo(){
   if(undoStack.length<=1) return;
 
   redoStack.push(undoStack.pop());
-  loadImage(undoStack.at(-1));
+
+  loadCanvas(undoStack.at(-1));
 }
 
 function redo(){
@@ -266,37 +246,40 @@ function redo(){
 
   let x = redoStack.pop();
   undoStack.push(x);
-  loadImage(x);
+
+  loadCanvas(x);
 }
 
-function loadImage(src){
+function loadCanvas(src){
   let im = new Image();
   im.src = src;
-  im.onload = ()=>{ ctx.drawImage(im,0,0); };
+  im.onload = ()=>{
+      ctx.drawImage(im,0,0);
+      original = ctx.getImageData(0,0,canvas.width,canvas.height);
+  };
 }
 
-function clearHistory(){ undoStack=[]; redoStack=[]; }
+function clearHistory(){
+  undoStack=[];
+  redoStack=[];
+}
 
 
-
-// ======================================================
-// Reset
-// ======================================================
+// ==================================================
 function resetImage(){
 
-  if(!originalImage) return;
+  if(!original) return;
 
-  blocks = [];
+  blocks=[];
 
-  loadImage(originalImage);
+  ctx.putImageData(original,0,0);
 
   clearHistory();
   pushUndo();
 }
 
 
-
-// ======================================================
+// ==================================================
 function saveImage(){
 
   let a = document.createElement("a");
@@ -306,8 +289,7 @@ function saveImage(){
 }
 
 
-
-// ======================================================
+// ==================================================
 document.addEventListener("keydown", e=>{
   if(e.ctrlKey && e.key==="z") undo();
   if(e.ctrlKey && e.key==="y") redo();
