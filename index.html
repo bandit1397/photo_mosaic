@@ -3,54 +3,46 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-
 <title>Mobile Mosaic Tool - Rate 1~40</title>
 
 <style>
-  body{
-    font-family:sans-serif;
-    margin:0;
-    padding:0;
-    background:#f2f2f2;
-    display:flex;
-    justify-content:center;
-    align-items:flex-start;
-    min-height:100vh;
-  }
-
-  .wrapper{
-    background:white;
-    padding:20px;
-    margin-top:30px;
-    border-radius:10px;
-    box-shadow:0 0 10px rgba(0,0,0,0.1);
-    width:95%;
-    max-width:900px;
-    text-align:center;
-  }
-
-  #canvas{
-    border:1px solid #ccc;
-    max-width:100%;
-    width:100%;
-    height:auto;
-    touch-action:none;
-  }
-
-  button{
-    margin:5px;
-    padding:10px 14px;
-    font-size:14px;
-  }
-
-  @media(max-width:500px){
-    button{width:46%;}
-  }
+body{
+  font-family:sans-serif;
+  margin:0;
+  padding:0;
+  background:#f2f2f2;
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  min-height:100vh;
+}
+.wrapper{
+  background:white;
+  padding:20px;
+  margin-top:30px;
+  border-radius:10px;
+  box-shadow:0 0 10px rgba(0,0,0,0.1);
+  width:95%;
+  max-width:900px;
+  text-align:center;
+}
+#canvas{
+  border:1px solid #ccc;
+  max-width:100%;
+  width:100%;
+  height:auto;
+  touch-action:none;
+}
+button{
+  margin:5px;
+  padding:10px 14px;
+  font-size:14px;
+}
+@media(max-width:500px){ button{width:46%;} }
 </style>
 </head>
 
 <body>
-
 <div class="wrapper">
 
 <h2>비식별화(모자이크)</h2>
@@ -69,7 +61,6 @@
 <button onclick="resetImage()">처음으로</button>
 
 <br><br>
-
 <canvas id="canvas"></canvas>
 
 </div>
@@ -85,6 +76,8 @@ let undoStack = [];
 let redoStack = [];
 let baseImage = null;
 
+const rateValue = document.getElementById("rateValue");
+
 // ============================
 // 이미지 업로드
 // ============================
@@ -95,21 +88,14 @@ document.getElementById("upload").addEventListener("change", e=>{
     let w = img.width;
     let h = img.height;
 
-    if(w > MAX){
-      h = h * (MAX/w);
-      w = MAX;
-    }
-    if(h > MAX){
-      w = w * (MAX/h);
-      h = MAX;
-    }
+    if(w > MAX){ h = h * (MAX/w); w = MAX; }
+    if(h > MAX){ w = w * (MAX/h); h = MAX; }
 
     canvas.width = w;
     canvas.height = h;
-    ctx.drawImage(img, 0, 0, w, h);
+    ctx.drawImage(img,0,0,w,h);
 
     baseImage = canvas.toDataURL();
-
     clearHistory();
     pushUndo();
   };
@@ -118,83 +104,71 @@ document.getElementById("upload").addEventListener("change", e=>{
 // ============================
 // 슬라이더
 // ============================
-rate.oninput = function(){
+document.getElementById("rate").addEventListener("input", function(){
   rate = Number(this.value);
-  rateValue.innerText = rate;
-};
+  rateValue.innerText = rate; // 숫자 즉시 반영
+});
 
 // ============================
-// 좌표 등록
+// 좌표 등록 (PC/모바일)
 // ============================
-canvas.addEventListener("click", e => {
+canvas.addEventListener("click", e=>{
   const r = canvas.getBoundingClientRect();
   let scaleX = canvas.width / r.width;
   let scaleY = canvas.height / r.height;
-
   let x = (e.clientX - r.left) * scaleX;
   let y = (e.clientY - r.top) * scaleY;
-
   registerPoint(x,y);
 });
 
-canvas.addEventListener("touchstart", e => {
+canvas.addEventListener("touchstart", e=>{
   const r = canvas.getBoundingClientRect();
   let t = e.touches[0];
-
   let scaleX = canvas.width / r.width;
   let scaleY = canvas.height / r.height;
-
   let x = (t.clientX - r.left) * scaleX;
   let y = (t.clientY - r.top) * scaleY;
-
   registerPoint(x,y);
-
   e.preventDefault();
 },{passive:false});
 
 function registerPoint(x,y){
   touches.push({x,y});
-  if(touches.length === 4){
+  if(touches.length===4){
     mosaic();
     touches=[];
   }
 }
 
 // ============================
-// Grid 기반 모자이크
+// Grid 모자이크
 // ============================
 function mosaic(){
   let xs = touches.map(p=>p.x);
   let ys = touches.map(p=>p.y);
-
   let left = Math.min(...xs);
   let right = Math.max(...xs);
   let top = Math.min(...ys);
   let bottom = Math.max(...ys);
+  let w = right-left;
+  let h = bottom-top;
+  if(w<5||h<5) return;
 
-  let w = right - left;
-  let h = bottom - top;
-
-  if(w<5 || h<5) return;
-
-  let imageData = ctx.getImageData(left, top, w, h);
+  let imageData = ctx.getImageData(left,top,w,h);
   let tempCanvas = document.createElement("canvas");
-  tempCanvas.width = w;
-  tempCanvas.height = h;
+  tempCanvas.width=w; tempCanvas.height=h;
   let tctx = tempCanvas.getContext("2d");
   tctx.putImageData(imageData,0,0);
 
-  // Grid 모자이크 적용 (rate = cell size)
   let cell = rate;
-  for(let i=0; i<w; i+=cell){
-    for(let j=0; j<h; j+=cell){
+  for(let i=0;i<w;i+=cell){
+    for(let j=0;j<h;j+=cell){
       let px = tctx.getImageData(i,j,1,1);
       let r = px.data[0], g = px.data[1], b = px.data[2];
       tctx.fillStyle = `rgb(${r},${g},${b})`;
       tctx.fillRect(i,j,cell,cell);
     }
   }
-
   ctx.drawImage(tempCanvas,left,top);
   pushUndo();
 }
@@ -202,62 +176,26 @@ function mosaic(){
 // ============================
 // 히스토리
 // ============================
-function pushUndo(){
-  undoStack.push(canvas.toDataURL());
-  redoStack = [];
-}
-
-function undo(){
-  if(undoStack.length<=1) return;
-  redoStack.push(undoStack.pop());
-  apply(undoStack.at(-1));
-}
-
-function redo(){
-  if(redoStack.length===0) return;
-  let data = redoStack.pop();
-  undoStack.push(data);
-  apply(data);
-}
-
-function apply(src){
-  let image = new Image();
-  image.src = src;
-  image.onload = ()=> ctx.drawImage(image,0,0);
-}
-
-function clearHistory(){
-  undoStack=[];
-  redoStack=[];
-}
+function pushUndo(){ undoStack.push(canvas.toDataURL()); redoStack=[]; }
+function undo(){ if(undoStack.length<=1) return; redoStack.push(undoStack.pop()); apply(undoStack.at(-1)); }
+function redo(){ if(redoStack.length===0) return; let data = redoStack.pop(); undoStack.push(data); apply(data); }
+function apply(src){ let image = new Image(); image.src=src; image.onload=()=>ctx.drawImage(image,0,0); }
+function clearHistory(){ undoStack=[]; redoStack=[]; }
 
 // ============================
 // reset
 // ============================
-function resetImage(){
-  if(!baseImage) return;
-  apply(baseImage);
-  clearHistory();
-  pushUndo();
-}
+function resetImage(){ if(!baseImage) return; apply(baseImage); clearHistory(); pushUndo(); }
 
 // ============================
 // 저장
 // ============================
-function saveImage(){
-  let link = document.createElement("a");
-  link.download = "mosaic.png";
-  link.href = canvas.toDataURL();
-  link.click();
-}
+function saveImage(){ let link=document.createElement("a"); link.download="mosaic.png"; link.href=canvas.toDataURL(); link.click(); }
 
 // ============================
 // 단축키
 // ============================
-document.addEventListener("keydown", e=>{
-  if(e.ctrlKey && e.key==="z") undo();
-  if(e.ctrlKey && e.key==="y") redo();
-});
+document.addEventListener("keydown", e=>{ if(e.ctrlKey && e.key==="z") undo(); if(e.ctrlKey && e.key==="y") redo(); });
 </script>
 
 </body>
