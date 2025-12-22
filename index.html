@@ -72,29 +72,29 @@ button{ width:46%; }
 
 </div>
 
-<!-- SCRIPT -->
 <script>
 
 let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d");
 let img  = new Image();
 
-let baseImage = null;      
-let undoStack=[];
-let redoStack=[];
+let undoStack = [];
+let redoStack = [];
 
 let touches = [];
 let blocks  = [];
 
 let rate = 15;
 
+let originalImage = null;
+
 const rateSlider  = document.getElementById("rate");
 const rateValue   = document.getElementById("rateValue");
 
 
-// ==================================================
-// 이미지 업로드
-// ==================================================
+// ======================================================
+// 업로드
+// ======================================================
 document.getElementById("upload").addEventListener("change", e=>{
 
   img.src = URL.createObjectURL(e.target.files[0]);
@@ -113,36 +113,34 @@ document.getElementById("upload").addEventListener("change", e=>{
 
     ctx.drawImage(img,0,0,w,h);
 
-    baseImage = canvas.toDataURL();
+    originalImage = canvas.toDataURL(); // 진짜 원본 저장
 
-    blocks=[];
+    blocks = [];
     clearHistory();
     pushUndo();
   };
 });
 
 
-// ==================================================
-// 슬라이더 – 즉시 숫자출력 및 모자이크 강도 반영
-// ==================================================
+// ======================================================
+// 강도 변경 → 기존 모자이크 재계산
+// ======================================================
 rateSlider.oninput = ()=>{
 
   rate = Number(rateSlider.value);
-
   rateValue.innerText = rate;
 
-  redrawAll(true);
+  redrawBlocksOnly();  // ★ 핵심 기능
 };
 
 
 
-// ==================================================
-// 캔버스 터치 & 클릭
-// ==================================================
+// ======================================================
+// 4점 등록
+// ======================================================
 canvas.addEventListener("click", e=>{
 
   const r = canvas.getBoundingClientRect();
-
   let x=(e.clientX-r.left)*(canvas.width/r.width);
   let y=(e.clientY-r.top)*(canvas.height/r.height);
 
@@ -150,7 +148,6 @@ canvas.addEventListener("click", e=>{
 });
 
 canvas.addEventListener("touchstart", e=>{
-
   const r = canvas.getBoundingClientRect();
   let t = e.touches[0];
 
@@ -164,9 +161,7 @@ canvas.addEventListener("touchstart", e=>{
 
 
 
-// ==================================================
-// 점 4개 모이면 영역 생성
-// ==================================================
+// ======================================================
 function register(x,y){
 
   touches.push({x,y});
@@ -179,9 +174,7 @@ function register(x,y){
 
 
 
-// ==================================================
-// 블록 생성 + 강도 적용
-// ==================================================
+// ======================================================
 function createBlock(){
 
   let xs = touches.map(a=>a.x);
@@ -199,45 +192,34 @@ function createBlock(){
 
   blocks.push({left,top,w,h});
 
-  redrawAll(false);
+  redrawBlocksOnly();
   pushUndo();
 }
 
 
 
-// ==================================================
-// 전체 다시 그림
-// ==================================================
-function redrawAll(saveImageFlag){
+// ======================================================
+// 원본 적용 후 모자이크 전체 다시 그리기
+// ======================================================
+function redrawBlocksOnly(){
 
-  applyBase();
+  // 원본 복구
+  let im = new Image();
+  im.src = originalImage;
+  im.onload = ()=>{
 
-  blocks.forEach(b=>{
-    mosaic(b.left,b.top,b.w,b.h);
-  });
+    ctx.drawImage(im,0,0);
 
-  if(saveImageFlag){
-     baseImage = canvas.toDataURL();
+    blocks.forEach(b=>{
+      mosaic(b.left,b.top,b.w,b.h);
+    });
+
   }
 }
 
 
 
-// ==================================================
-// 원본 다시 그림
-// ==================================================
-function applyBase(){
-
-  let im = new Image();
-  im.src = baseImage;
-  im.onload = ()=>{ ctx.drawImage(im,0,0); };
-}
-
-
-
-// ==================================================
-// 모자이크 처리
-// ==================================================
+// ======================================================
 function mosaic(left,top,w,h){
 
   let cell = rate;
@@ -264,9 +246,9 @@ function mosaic(left,top,w,h){
 
 
 
-// ==================================================
+// ======================================================
 // Undo / Redo
-// ==================================================
+// ======================================================
 function pushUndo(){
   undoStack.push(canvas.toDataURL());
   redoStack=[];
@@ -276,8 +258,7 @@ function undo(){
   if(undoStack.length<=1) return;
 
   redoStack.push(undoStack.pop());
-
-  loadCanvas(undoStack.at(-1));
+  loadImage(undoStack.at(-1));
 }
 
 function redo(){
@@ -285,35 +266,29 @@ function redo(){
 
   let x = redoStack.pop();
   undoStack.push(x);
-
-  loadCanvas(x);
+  loadImage(x);
 }
 
-function loadCanvas(src){
-
+function loadImage(src){
   let im = new Image();
   im.src = src;
   im.onload = ()=>{ ctx.drawImage(im,0,0); };
-
 }
 
-function clearHistory(){
-  undoStack=[];
-  redoStack=[];
-}
+function clearHistory(){ undoStack=[]; redoStack=[]; }
 
 
 
-// ==================================================
+// ======================================================
 // Reset
-// ==================================================
+// ======================================================
 function resetImage(){
 
-  if(!baseImage) return;
+  if(!originalImage) return;
 
-  blocks=[];
+  blocks = [];
 
-  loadCanvas(baseImage);
+  loadImage(originalImage);
 
   clearHistory();
   pushUndo();
@@ -321,9 +296,7 @@ function resetImage(){
 
 
 
-// ==================================================
-// 저장
-// ==================================================
+// ======================================================
 function saveImage(){
 
   let a = document.createElement("a");
@@ -334,9 +307,7 @@ function saveImage(){
 
 
 
-// ==================================================
-// 단축키
-// ==================================================
+// ======================================================
 document.addEventListener("keydown", e=>{
   if(e.ctrlKey && e.key==="z") undo();
   if(e.ctrlKey && e.key==="y") redo();
