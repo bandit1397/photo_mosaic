@@ -214,8 +214,11 @@ function mosaic(){
   let tctx = temp.getContext("2d");
   tctx.putImageData(sub,0,0);
 
-  tctx.drawImage(temp,0,0,w/rate,h/rate);
-  tctx.drawImage(temp,0,0,w/rate,h/rate,0,0,w,h);
+  let rw = Math.max(1, Math.floor(w / rate));
+  let rh = Math.max(1, Math.floor(h / rate));
+
+  tctx.drawImage(temp,0,0,rw,rh);
+  tctx.drawImage(temp,0,0,rw,rh,0,0,w,h);
 
   ctx.drawImage(temp,left,top);
 
