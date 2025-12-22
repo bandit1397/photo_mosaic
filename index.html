@@ -1,277 +1,121 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html>
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-
-<title>Rectangle Mosaic Tool - Mobile 4-Point Mode</title>
+<meta charset="UTF-8">
+<title>Mobile 4-Point Mosaic</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-
-  body {
-    font-family:sans-serif;
-    margin:0;
-    padding:0;
-    background:#f2f2f2;
-    display:flex;
-    justify-content:center;
-    align-items:flex-start;
-    min-height:100vh;
-  }
-
-  .wrapper {
-    background:white;
-    padding:20px;
-    margin-top:30px;
-    border-radius:10px;
-    box-shadow:0 0 10px rgba(0,0,0,0.1);
-    width:95%;
-    max-width:900px;
-    text-align:center;
-  }
-
-  #canvas {
-    border:1px solid #ccc;
-    cursor:pointer;
-    max-width:100%;
-    height:auto;
-  }
-
+body{
+  margin:0;
+  background:black;
+  overflow:hidden;
+}
+canvas{
+  width:100vw;
+  height:auto;
+  touch-action:none;
+}
 </style>
 </head>
 
 <body>
 
-<div class="wrapper">
-
-<h2>모바일 4점 모자이크</h2>
-
-<input type="file" id="upload" accept="image/*">
-
-<br><br>
-
-<div>
-  강도 : 
-  <input id="rate" type="range" min="3" max="40" value="15">
-  <span id="rateValue">15</span>
-</div>
-
-<br>
-
-<button onclick="saveImage()">저장</button>
-<button onclick="undo()">Undo</button>
-<button onclick="redo()">Redo</button>
-<button onclick="resetImage()">처음으로</button>
-
-<br><br>
-
-<canvas id="canvas"></canvas>
-
-</div>
+<canvas id="c"></canvas>
 
 <script>
 
-let img = new Image();
-let canvas = document.getElementById("canvas");
+let canvas = document.getElementById("c");
 let ctx = canvas.getContext("2d");
 
-let rate = 15;
+let img = new Image();
+img.src = "test.jpg"; // 변경
 
-let points = []; // 4점 저장용
+let points = [];
+let mosaicRate = 12;
 
-let undoStack = [];
-let redoStack = [];
-let baseImageData = null;
-let originalWidth = 0;
-let originalHeight = 0;
+function fitCanvas(){
+  let ratio = img.width / img.height;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerWidth / ratio;
+  ctx.drawImage(img,0,0,canvas.width,canvas.height);
+}
+  
+img.onload = ()=>{ fitCanvas(); }
 
-// ===========================
-// 파일 업로드
-// ===========================
-document.getElementById("upload").addEventListener("change", e=>{
+window.addEventListener("orientationchange",()=>{
+  setTimeout(fitCanvas,300);
+});
 
-  img.src = URL.createObjectURL(e.target.files[0]);
+function getXY(e){
 
-  img.onload = ()=>{
+  let rect = canvas.getBoundingClientRect();
+  
+  let x,y;
 
-    originalWidth  = img.width;
-    originalHeight = img.height;
-
-    resizeCanvas();
-    drawBase();
-
-    baseImageData = canvas.toDataURL();
-
-    clearHistory();
-    pushUndo();
+  if(e.touches){
+    x = e.touches[0].clientX - rect.left;
+    y = e.touches[0].clientY - rect.top;
+  } else {
+    x = e.clientX - rect.left;
+    y = e.clientY - rect.top;
   }
-});
 
+  x = x * (canvas.width / rect.width);
+  y = y * (canvas.height / rect.height);
 
-// ===========================
-// 슬라이더
-// ===========================
-document.getElementById("rate").addEventListener("input", function(){
-  rate = Number(this.value);
-  document.getElementById("rateValue").innerText = rate;
-});
+  return {x,y};
+}
 
-
-// ===========================
-// canvas 터치 → 점 저장
-// ===========================
-canvas.addEventListener("click", e=>{
-
-  if(!img.src) return;
-
-  const rect = canvas.getBoundingClientRect();
-  let x = (e.clientX - rect.left) * (originalWidth / canvas.width);
-  let y = (e.clientY - rect.top) * (originalHeight / canvas.height);
+function addPoint(x,y){
 
   points.push({x,y});
 
   if(points.length === 4){
-    mosaicByFourPoints(points);
-    points = [];
-    pushUndo();
+    processMosaic();
+    points=[];
   }
+}
 
-});
+function processMosaic(){
 
+  let minX = Math.min(...points.map(p=>p.x));
+  let minY = Math.min(...points.map(p=>p.y));
+  let maxX = Math.max(...points.map(p=>p.x));
+  let maxY = Math.max(...points.map(p=>p.y));
 
-// ===========================
-// 모자이크 처리
-// ===========================
-function mosaicByFourPoints(p){
+  let w = maxX-minX;
+  let h = maxY-minY;
 
-  let minX = Math.min(...p.map(pt=>pt.x));
-  let minY = Math.min(...p.map(pt=>pt.y));
-  let maxX = Math.max(...p.map(pt=>pt.x));
-  let maxY = Math.max(...p.map(pt=>pt.y));
+  if(w<5 || h<5) return;
 
-  let w = maxX - minX;
-  let h = maxY - minY;
-
-  if(w < 5 || h < 5) return;
-
-  let sub = ctx.getImageData(minX, minY, w, h);
+  let imgData = ctx.getImageData(minX,minY,w,h);
 
   let temp = document.createElement("canvas");
   temp.width = w;
   temp.height = h;
 
   let tctx = temp.getContext("2d");
+  tctx.putImageData(imgData,0,0);
 
-  tctx.putImageData(sub,0,0);
-  tctx.drawImage(temp,0,0,w/rate,h/rate);
-  tctx.drawImage(temp,0,0,w/rate,h/rate,0,0,w,h);
+  tctx.drawImage(temp,0,0,w/mosaicRate,h/mosaicRate);
+  tctx.drawImage(temp,0,0,w/mosaicRate,h/mosaicRate,0,0,w,h);
 
   ctx.drawImage(temp,minX,minY);
+
 }
 
-
-// ===========================
-// Undo / Redo
-// ===========================
-function pushUndo(){
-  undoStack.push(canvas.toDataURL());
-  redoStack = [];
-}
-
-function undo(){
-  if(undoStack.length <= 1) return;
-  redoStack.push(undoStack.pop());
-  applyFrom(undoStack[undoStack.length - 1]);
-}
-
-function redo(){
-  if(redoStack.length === 0) return;
-  let data = redoStack.pop();
-  undoStack.push(data);
-  applyFrom(data);
-}
-
-function clearHistory(){
-  undoStack = [];
-  redoStack = [];
-}
-
-function applyFrom(src){
-  let image = new Image();
-  image.src = src;
-  image.onload = ()=>{
-
-    ctx.drawImage(image,0,0,originalWidth,originalHeight);
-
-    canvasResizeRedraw();
-  };
-}
-
-
-// ===========================
-// 저장
-// ===========================
-function saveImage(){
-  const link = document.createElement("a");
-  link.download = "mosaic.png";
-  link.href = canvas.toDataURL();
-  link.click();
-}
-
-
-// ===========================
-// Reset
-// ===========================
-function resetImage(){
-
-  if(!baseImageData) return;
-
-  applyFrom(baseImageData);
-
-  clearHistory();
-  pushUndo();
-}
-
-
-// ===========================
-// Canvas Resize (회전 대응)
-// ===========================
-window.addEventListener("resize", ()=>{
-  if(!img.src) return;
-  canvasResizeRedraw();
+canvas.addEventListener("click",e=>{
+  let p=getXY(e);
+  addPoint(p.x,p.y);
 });
 
-function resizeCanvas(){
-
-  const maxDisplayWidth = document.body.clientWidth * 0.9;
-
-  let ratio = originalWidth / originalHeight;
-
-  canvas.width  = maxDisplayWidth;
-  canvas.height = maxDisplayWidth / ratio;
-}
-
-function canvasResizeRedraw(){
-
-  resizeCanvas();
-
-  let data = new Image();
-  data.src = undoStack[undoStack.length - 1];
-
-  data.onload = ()=>{
-    ctx.drawImage(data,0,0,originalWidth,originalHeight);
-  }
-}
-
-
-// ===========================
-// 초기 그리기
-// ===========================
-function drawBase(){
-  ctx.drawImage(img,0,0,originalWidth,originalHeight);
-}
+canvas.addEventListener("touchstart",e=>{
+  e.preventDefault();
+  let p=getXY(e);
+  addPoint(p.x,p.y);
+});
 
 </script>
-
 </body>
 </html>
