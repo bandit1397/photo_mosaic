@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Android Mosaic</title>
+<title>Mosaic Mobile</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
 <style>
@@ -12,7 +12,6 @@ html,body{
   background:black;
   height:100%;
   overflow:hidden;
-  touch-action:none;
 }
 #c{
   display:block;
@@ -20,10 +19,21 @@ html,body{
   height:100vh;
   touch-action:none;
 }
+#fileBox{
+  position:fixed;
+  top:10px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:100;
+}
 </style>
 </head>
 
 <body>
+
+<div id="fileBox">
+  <input type="file" id="file" accept="image/*">
+</div>
 
 <canvas id="c"></canvas>
 
@@ -33,67 +43,79 @@ let canvas = document.getElementById("c");
 let ctx = canvas.getContext("2d",{willReadFrequently:true});
 
 let img = new Image();
-img.src = "test.jpg";   // ← 여기에 본인 파일명 입력
-
-let points=[];
+let imgLoaded = false;
+let points = [];
 let mosaicRate = 12;
-let imgRatio = 0;
 
 function resizeCanvas(){
-
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 
-  if(imgRatio===0) return;
+  if(imgLoaded){
+    drawScaledImage();
+  }
+}
 
-  let drawH = canvas.width / imgRatio;
+function drawScaledImage(){
 
-  if(drawH > canvas.height){
-      drawH = canvas.height;
-      canvas.width = drawH * imgRatio;
+  let ratio = img.width / img.height;
+  let cw = canvas.width;
+  let ch = canvas.height;
+
+  let drawH = cw / ratio;
+
+  if(drawH > ch){
+     drawH = ch;
+     cw = drawH * ratio;
   }
 
+  canvas.width = cw;
   canvas.height = drawH;
-  ctx.drawImage(img,0,0,canvas.width,canvas.height);
+
+  ctx.drawImage(img,0,0,cw,drawH);
 }
 
-img.onload = ()=>{
-  imgRatio = img.width / img.height;
-  resizeCanvas();
-}
 
-window.addEventListener("resize",()=>{
-  resizeCanvas();
+//============== 이미지 로드 ==================
+
+document.getElementById("file").addEventListener("change", e=>{
+
+  let file = e.target.files[0];
+  let url = URL.createObjectURL(file);
+
+  img.src = url;
+
+  img.onload = ()=>{
+     imgLoaded = true;
+     resizeCanvas();
+  };
+
 });
 
-window.addEventListener("orientationchange",()=>{
-  setTimeout(resizeCanvas,600);
-});
 
-function getXYTouch(e){
+//============== 터치 좌표 ==================
+
+canvas.addEventListener("touchstart",e=>{
+  if(!imgLoaded) return;
 
   let rect = canvas.getBoundingClientRect();
 
-  let x = e.touches[0].clientX - rect.left;
-  let y = e.touches[0].clientY - rect.top;
-
-  x = x * (canvas.width / rect.width);
-  y = y * (canvas.height / rect.height);
-
-  return {x,y};
-}
-
-function addPointXY(x,y){
+  let x = (e.touches[0].clientX - rect.left) * (canvas.width / rect.width);
+  let y = (e.touches[0].clientY - rect.top) * (canvas.height / rect.height);
 
   points.push({x,y});
 
-  if(points.length===4){
-      applyMosaic();
-      points=[];
+  if(points.length === 4){
+     mosaicBy4();
+     points = [];
   }
-}
 
-function applyMosaic(){
+},{passive:false});
+
+
+//============== 모자이크 처리 ==================
+
+function mosaicBy4(){
 
   let minX = Math.min(...points.map(p=>p.x));
   let minY = Math.min(...points.map(p=>p.y));
@@ -118,13 +140,12 @@ function applyMosaic(){
   tctx.drawImage(tmp,0,0,w/mosaicRate,h/mosaicRate,0,0,w,h);
 
   ctx.drawImage(tmp,minX,minY);
+
 }
 
-canvas.addEventListener("touchstart",e=>{
-  e.preventDefault();
-  let p=getXYTouch(e);
-  addPointXY(p.x,p.y);
-},{passive:false});
+
+window.addEventListener("resize",()=>resizeCanvas());
+window.addEventListener("orientationchange",()=>setTimeout(resizeCanvas,600));
 
 </script>
 </body>
