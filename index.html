@@ -83,7 +83,7 @@ let rate = 15;
 const isMobile = window.matchMedia("(pointer: coarse)").matches;
 
 function effectiveRate(){
-  return isMobile ? rate * 1.6 : rate;
+  return isMobile ? rate * 2.0 : rate;
 }
 
 const rateSlider = document.getElementById("rate");
