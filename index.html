@@ -15,7 +15,6 @@ body{
   min-height:100vh;
   font-family:sans-serif;
 }
-
 .wrapper{
   background:#fff;
   padding:20px;
@@ -26,32 +25,16 @@ body{
   text-align:center;
   box-shadow:0 0 8px rgba(0,0,0,.15);
 }
-
-.canvas-wrap{
-  position:relative;
-}
-
+.canvas-wrap{position:relative;}
 canvas{
   width:100%;
   border:1px solid #aaa;
   touch-action:none;
 }
-
 #overlay{
   position:absolute;
-  left:0;
-  top:0;
+  left:0; top:0;
   pointer-events:none;
-}
-
-.handle{
-  position:absolute;
-  width:12px;
-  height:12px;
-  background:#0ea5e9;
-  border-radius:50%;
-  transform:translate(-50%,-50%);
-  pointer-events:auto;
 }
 </style>
 </head>
@@ -88,7 +71,8 @@ const octx = overlay.getContext("2d");
 let img = new Image();
 let original = null;
 let blocks = [];
-let undoStack=[], redoStack=[];
+let undoStack = [];
+let redoStack = [];
 let rate = 15;
 
 const rateSlider = document.getElementById("rate");
@@ -106,6 +90,7 @@ document.getElementById("upload").onchange=e=>{
     original=ctx.getImageData(0,0,canvas.width,canvas.height);
     blocks=[];
     undoStack=[];
+    redoStack=[];
     pushUndo();
   };
 };
@@ -163,11 +148,14 @@ function drawPreview(x1,y1,x2,y2){
 function addBlock(x1,y1,x2,y2){
   let w=Math.abs(x2-x1), h=Math.abs(y2-y1);
   if(w<5||h<5) return;
+
   blocks.push({
     left:Math.min(x1,x2),
     top:Math.min(y1,y2),
     w,h
   });
+
+  redoStack=[];        // ⭐ undo 이후 새 작업 → redo 폐기
   redraw();
   pushUndo();
 }
@@ -182,7 +170,8 @@ function mosaic(b){
   let t=document.createElement("canvas");
   t.width=b.w; t.height=b.h;
   let tctx=t.getContext("2d");
-  tctx.drawImage(canvas,b.left,b.top,b.w,b.h,0,0,b.w,b.h);
+  tctx.drawImage(original,b.left,b.top,b.w,b.h,0,0,b.w,b.h);
+
   for(let x=0;x<b.w;x+=rate){
     for(let y=0;y<b.h;y+=rate){
       let d=tctx.getImageData(x,y,1,1).data;
@@ -195,34 +184,27 @@ function mosaic(b){
 
 // ===============================
 function pushUndo(){
-  undoStack.push(canvas.toDataURL());
-  redoStack=[];
+  undoStack.push(JSON.parse(JSON.stringify(blocks)));
 }
 
 function undo(){
   if(undoStack.length<2) return;
   redoStack.push(undoStack.pop());
-  load(undoStack.at(-1));
+  blocks = JSON.parse(JSON.stringify(undoStack.at(-1)));
+  redraw();
 }
 
 function redo(){
   if(!redoStack.length) return;
-  let s=redoStack.pop();
+  let s = redoStack.pop();
   undoStack.push(s);
-  load(s);
-}
-
-function load(src){
-  let i=new Image();
-  i.src=src;
-  i.onload=()=>{
-    ctx.drawImage(i,0,0);
-    original=ctx.getImageData(0,0,canvas.width,canvas.height);
-  };
+  blocks = JSON.parse(JSON.stringify(s));
+  redraw();
 }
 
 function resetImage(){
   blocks=[];
+  redoStack=[];
   redraw();
   undoStack=[];
   pushUndo();
