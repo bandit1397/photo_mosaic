@@ -68,8 +68,11 @@ const overlay = document.getElementById("overlay");
 const ctx = canvas.getContext("2d");
 const octx = overlay.getContext("2d");
 
+/* ⭐ hidden 원본 캔버스 (핵심) */
+const sourceCanvas = document.createElement("canvas");
+const sctx = sourceCanvas.getContext("2d");
+
 let img = new Image();
-let original = null;
 let blocks = [];
 let undoStack = [];
 let redoStack = [];
@@ -84,10 +87,12 @@ let dragging=false,startX=0,startY=0;
 document.getElementById("upload").onchange=e=>{
   img.src = URL.createObjectURL(e.target.files[0]);
   img.onload=()=>{
-    canvas.width=overlay.width=img.width;
-    canvas.height=overlay.height=img.height;
+    canvas.width = overlay.width = sourceCanvas.width = img.width;
+    canvas.height = overlay.height = sourceCanvas.height = img.height;
+
     ctx.drawImage(img,0,0);
-    original=ctx.getImageData(0,0,canvas.width,canvas.height);
+    sctx.drawImage(img,0,0); // ⭐ 원본 보존
+
     blocks=[];
     undoStack=[];
     redoStack=[];
@@ -155,22 +160,30 @@ function addBlock(x1,y1,x2,y2){
     w,h
   });
 
-  redoStack=[];        // ⭐ undo 이후 새 작업 → redo 폐기
+  redoStack=[];
   redraw();
   pushUndo();
 }
 
 // ===============================
 function redraw(){
-  ctx.putImageData(original,0,0);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(sourceCanvas,0,0);
   blocks.forEach(b=>mosaic(b));
 }
 
+// ===============================
 function mosaic(b){
   let t=document.createElement("canvas");
   t.width=b.w; t.height=b.h;
   let tctx=t.getContext("2d");
-  tctx.drawImage(original,b.left,b.top,b.w,b.h,0,0,b.w,b.h);
+
+  /* ⭐ 반드시 sourceCanvas 사용 */
+  tctx.drawImage(
+    sourceCanvas,
+    b.left, b.top, b.w, b.h,
+    0, 0, b.w, b.h
+  );
 
   for(let x=0;x<b.w;x+=rate){
     for(let y=0;y<b.h;y+=rate){
