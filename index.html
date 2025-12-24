@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -70,7 +69,7 @@ const overlay = document.getElementById("overlay");
 const ctx = canvas.getContext("2d");
 const octx = overlay.getContext("2d");
 
-/* 원본 보존용 캔버스 */
+/* 원본 보존 캔버스 */
 const sourceCanvas = document.createElement("canvas");
 const sctx = sourceCanvas.getContext("2d");
 
@@ -80,11 +79,11 @@ let undoStack = [];
 let redoStack = [];
 let rate = 15;
 
-/* ⭐ 모바일 감지 */
+/* 모바일 감지 */
 const isMobile = window.matchMedia("(pointer: coarse)").matches;
 
 function effectiveRate(){
-  return isMobile ? rate * 2.0 : rate;
+  return isMobile ? rate * 2 : rate;
 }
 
 const rateSlider = document.getElementById("rate");
@@ -92,7 +91,7 @@ const rateValue = document.getElementById("rateValue");
 
 let dragging=false,startX=0,startY=0;
 
-// ===============================
+// ===================================
 document.getElementById("upload").onchange=e=>{
   img.src = URL.createObjectURL(e.target.files[0]);
   img.onload=()=>{
@@ -109,14 +108,14 @@ document.getElementById("upload").onchange=e=>{
   };
 };
 
-// ===============================
+// ===================================
 rateSlider.oninput=()=>{
   rate=+rateSlider.value;
   rateValue.innerText=rate;
   redraw();
 };
 
-// ===============================
+// ===================================
 function getPos(e){
   const r=canvas.getBoundingClientRect();
   return {
@@ -125,7 +124,7 @@ function getPos(e){
   };
 }
 
-// ===============================
+// ===================================
 canvas.addEventListener("pointerdown",e=>{
   e.preventDefault();
   canvas.setPointerCapture(e.pointerId);
@@ -154,12 +153,18 @@ canvas.addEventListener("pointercancel",()=>{
   octx.clearRect(0,0,overlay.width,overlay.height);
 });
 
-// ===============================
+// ===================================
+// ✅ ROI 미리보기 (모바일 스케일 보정 적용)
 function drawPreview(x1,y1,x2,y2){
   octx.clearRect(0,0,overlay.width,overlay.height);
-  octx.setLineDash([6,4]);
-  octx.lineWidth = isMobile ? 12 : 3;
-  octx.strokeStyle = "rgba(0,120,255,0.9)";
+
+  const rect = canvas.getBoundingClientRect();
+  const scale = canvas.width / rect.width;
+
+  octx.setLineDash([6 * scale, 4 * scale]);
+  octx.lineWidth = (isMobile ? 12 : 3) * scale;
+  octx.strokeStyle = "rgba(0,120,255,0.95)";
+
   octx.strokeRect(
     Math.min(x1,x2),
     Math.min(y1,y2),
@@ -168,7 +173,7 @@ function drawPreview(x1,y1,x2,y2){
   );
 }
 
-// ===============================
+// ===================================
 function addBlock(x1,y1,x2,y2){
   let w=Math.abs(x2-x1), h=Math.abs(y2-y1);
   if(w<5||h<5) return;
@@ -184,14 +189,14 @@ function addBlock(x1,y1,x2,y2){
   pushUndo();
 }
 
-// ===============================
+// ===================================
 function redraw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(sourceCanvas,0,0);
   blocks.forEach(b=>mosaic(b));
 }
 
-// ===============================
+// ===================================
 function mosaic(b){
   let t=document.createElement("canvas");
   t.width=b.w; t.height=b.h;
@@ -215,7 +220,7 @@ function mosaic(b){
   ctx.drawImage(t,b.left,b.top);
 }
 
-// ===============================
+// ===================================
 function pushUndo(){
   undoStack.push(JSON.parse(JSON.stringify(blocks)));
 }
@@ -243,7 +248,7 @@ function resetImage(){
   pushUndo();
 }
 
-// ===============================
+// ===================================
 function saveImage(){
   let a=document.createElement("a");
   a.href=canvas.toDataURL();
