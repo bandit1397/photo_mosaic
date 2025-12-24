@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Mobile Mosaic – ROI Drag Pro</title>
+<title>Mobile Mosaic – ROI Drag Pro (Mobile FIX)</title>
 
 <style>
 body{
@@ -29,7 +29,7 @@ body{
 canvas{
   width:100%;
   border:1px solid #aaa;
-  touch-action:none;
+  touch-action:none; /* ⭐ 중요 */
 }
 #overlay{
   position:absolute;
@@ -68,7 +68,6 @@ const overlay = document.getElementById("overlay");
 const ctx = canvas.getContext("2d");
 const octx = overlay.getContext("2d");
 
-/* ⭐ hidden 원본 캔버스 (핵심) */
 const sourceCanvas = document.createElement("canvas");
 const sctx = sourceCanvas.getContext("2d");
 
@@ -91,7 +90,7 @@ document.getElementById("upload").onchange=e=>{
     canvas.height = overlay.height = sourceCanvas.height = img.height;
 
     ctx.drawImage(img,0,0);
-    sctx.drawImage(img,0,0); // ⭐ 원본 보존
+    sctx.drawImage(img,0,0);
 
     blocks=[];
     undoStack=[];
@@ -108,33 +107,63 @@ rateSlider.oninput=()=>{
 };
 
 // ===============================
-function pos(e){
-  const r=canvas.getBoundingClientRect();
+function getPos(clientX, clientY){
+  const r = canvas.getBoundingClientRect();
   return {
-    x:(e.clientX-r.left)*(canvas.width/r.width),
-    y:(e.clientY-r.top)*(canvas.height/r.height)
+    x:(clientX-r.left)*(canvas.width/r.width),
+    y:(clientY-r.top)*(canvas.height/r.height)
   };
 }
 
-canvas.onmousedown=e=>{
+// ===============================
+// MOUSE
+canvas.addEventListener("mousedown",e=>{
   dragging=true;
-  const p=pos(e);
+  const p=getPos(e.clientX,e.clientY);
   startX=p.x; startY=p.y;
-};
+});
 
-canvas.onmousemove=e=>{
+canvas.addEventListener("mousemove",e=>{
   if(!dragging) return;
-  const p=pos(e);
+  const p=getPos(e.clientX,e.clientY);
   drawPreview(startX,startY,p.x,p.y);
-};
+});
 
-canvas.onmouseup=e=>{
+canvas.addEventListener("mouseup",e=>{
   if(!dragging) return;
   dragging=false;
   octx.clearRect(0,0,overlay.width,overlay.height);
-  const p=pos(e);
+  const p=getPos(e.clientX,e.clientY);
   addBlock(startX,startY,p.x,p.y);
-};
+});
+
+// ===============================
+// TOUCH ⭐ 핵심 추가
+canvas.addEventListener("touchstart",e=>{
+  e.preventDefault();
+  const t=e.touches[0];
+  dragging=true;
+  const p=getPos(t.clientX,t.clientY);
+  startX=p.x; startY=p.y;
+},{passive:false});
+
+canvas.addEventListener("touchmove",e=>{
+  e.preventDefault();
+  if(!dragging) return;
+  const t=e.touches[0];
+  const p=getPos(t.clientX,t.clientY);
+  drawPreview(startX,startY,p.x,p.y);
+},{passive:false});
+
+canvas.addEventListener("touchend",e=>{
+  e.preventDefault();
+  if(!dragging) return;
+  dragging=false;
+  octx.clearRect(0,0,overlay.width,overlay.height);
+  const t=e.changedTouches[0];
+  const p=getPos(t.clientX,t.clientY);
+  addBlock(startX,startY,p.x,p.y);
+},{passive:false});
 
 // ===============================
 function drawPreview(x1,y1,x2,y2){
@@ -178,11 +207,10 @@ function mosaic(b){
   t.width=b.w; t.height=b.h;
   let tctx=t.getContext("2d");
 
-  /* ⭐ 반드시 sourceCanvas 사용 */
   tctx.drawImage(
     sourceCanvas,
-    b.left, b.top, b.w, b.h,
-    0, 0, b.w, b.h
+    b.left,b.top,b.w,b.h,
+    0,0,b.w,b.h
   );
 
   for(let x=0;x<b.w;x+=rate){
@@ -203,15 +231,15 @@ function pushUndo(){
 function undo(){
   if(undoStack.length<2) return;
   redoStack.push(undoStack.pop());
-  blocks = JSON.parse(JSON.stringify(undoStack.at(-1)));
+  blocks=JSON.parse(JSON.stringify(undoStack.at(-1)));
   redraw();
 }
 
 function redo(){
   if(!redoStack.length) return;
-  let s = redoStack.pop();
+  let s=redoStack.pop();
   undoStack.push(s);
-  blocks = JSON.parse(JSON.stringify(s));
+  blocks=JSON.parse(JSON.stringify(s));
   redraw();
 }
 
