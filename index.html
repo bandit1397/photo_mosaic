@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Mobile Mosaic – FIXED</title>
+<title>Mobile Mosaic – ROI Drag</title>
 
 <style>
 body{
@@ -72,33 +72,29 @@ button{ width:46%; }
 
 </div>
 
-<!-- SCRIPT -->
 <script>
 
 let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d");
-let img  = new Image();
+let img = new Image();
 
-let original = null;       
-let undoStack=[];
-let redoStack=[];
-
-let touches = [];
-let blocks  = [];
+let original = null;
+let undoStack = [];
+let redoStack = [];
+let blocks = [];
 
 let rate = 15;
+const rateSlider = document.getElementById("rate");
+const rateValue  = document.getElementById("rateValue");
 
-const rateSlider  = document.getElementById("rate");
-const rateValue   = document.getElementById("rateValue");
+let isDragging = false;
+let startX = 0, startY = 0;
 
 
 // ==================================================
 document.getElementById("upload").addEventListener("change", e=>{
-
   img.src = URL.createObjectURL(e.target.files[0]);
-
   img.onload = ()=>{
-
     const MAX = 1500;
     let w = img.width;
     let h = img.height;
@@ -110,7 +106,6 @@ document.getElementById("upload").addEventListener("change", e=>{
     canvas.height = h;
 
     ctx.drawImage(img,0,0,w,h);
-
     original = ctx.getImageData(0,0,w,h);
 
     blocks=[];
@@ -122,69 +117,65 @@ document.getElementById("upload").addEventListener("change", e=>{
 
 // ==================================================
 rateSlider.oninput = ()=>{
-
   rate = Number(rateSlider.value);
   rateValue.innerText = rate;
-
   redrawFromOriginal();
 };
 
 
 // ==================================================
-canvas.addEventListener("click", e=>{
-
+// ROI DRAG (Mouse + Touch)
+// ==================================================
+function getPos(e){
   const r = canvas.getBoundingClientRect();
+  const x = (e.clientX - r.left) * (canvas.width / r.width);
+  const y = (e.clientY - r.top)  * (canvas.height / r.height);
+  return {x,y};
+}
 
-  let x=(e.clientX-r.left)*(canvas.width/r.width);
-  let y=(e.clientY-r.top)*(canvas.height/r.height);
+canvas.addEventListener("mousedown", e=>{
+  isDragging = true;
+  const p = getPos(e);
+  startX = p.x;
+  startY = p.y;
+});
 
-  register(x,y);
+canvas.addEventListener("mouseup", e=>{
+  if(!isDragging) return;
+  isDragging = false;
+  const p = getPos(e);
+  createBlockFromDrag(startX,startY,p.x,p.y);
 });
 
 canvas.addEventListener("touchstart", e=>{
-
-  const r = canvas.getBoundingClientRect();
-  let t = e.touches[0];
-
-  let x=(t.clientX-r.left)*(canvas.width/r.width);
-  let y=(t.clientY-r.top)*(canvas.height/r.height);
-
-  register(x,y);
-
   e.preventDefault();
+  const t = e.touches[0];
+  isDragging = true;
+  const p = getPos(t);
+  startX = p.x;
+  startY = p.y;
+},{passive:false});
+
+canvas.addEventListener("touchend", e=>{
+  if(!isDragging) return;
+  isDragging = false;
+  const t = e.changedTouches[0];
+  const p = getPos(t);
+  createBlockFromDrag(startX,startY,p.x,p.y);
 },{passive:false});
 
 
 // ==================================================
-function register(x,y){
+function createBlockFromDrag(x1,y1,x2,y2){
 
-  touches.push({x,y});
-
-  if(touches.length===4){
-    createBlock();
-    touches=[];
-  }
-}
-
-
-// ==================================================
-function createBlock(){
-
-  let xs = touches.map(a=>a.x);
-  let ys = touches.map(a=>a.y);
-
-  let left   = Math.min(...xs);
-  let right  = Math.max(...xs);
-  let top    = Math.min(...ys);
-  let bottom = Math.max(...ys);
-
-  let w = right-left;
-  let h = bottom-top;
+  let left = Math.min(x1,x2);
+  let top  = Math.min(y1,y2);
+  let w = Math.abs(x2-x1);
+  let h = Math.abs(y2-y1);
 
   if(w<5 || h<5) return;
 
   blocks.push({left,top,w,h});
-
   redrawFromOriginal();
   pushUndo();
 }
@@ -192,9 +183,7 @@ function createBlock(){
 
 // ==================================================
 function redrawFromOriginal(){
-
   ctx.putImageData(original,0,0);
-
   blocks.forEach(b=>{
     mosaic(b.left,b.top,b.w,b.h);
   });
@@ -204,8 +193,6 @@ function redrawFromOriginal(){
 // ==================================================
 function mosaic(left,top,w,h){
 
-  let cell = rate;
-
   let temp = document.createElement("canvas");
   temp.width = w;
   temp.height = h;
@@ -213,13 +200,11 @@ function mosaic(left,top,w,h){
 
   tctx.drawImage(canvas,left,top,w,h,0,0,w,h);
 
-  for(let i=0;i<w;i+=cell){
-    for(let j=0;j<h;j+=cell){
-
+  for(let i=0;i<w;i+=rate){
+    for(let j=0;j<h;j+=rate){
       let px = tctx.getImageData(i,j,1,1).data;
-
       tctx.fillStyle = `rgb(${px[0]},${px[1]},${px[2]})`;
-      tctx.fillRect(i,j,cell,cell);
+      tctx.fillRect(i,j,rate,rate);
     }
   }
 
@@ -235,18 +220,14 @@ function pushUndo(){
 
 function undo(){
   if(undoStack.length<=1) return;
-
   redoStack.push(undoStack.pop());
-
   loadCanvas(undoStack.at(-1));
 }
 
 function redo(){
   if(redoStack.length===0) return;
-
   let x = redoStack.pop();
   undoStack.push(x);
-
   loadCanvas(x);
 }
 
@@ -254,8 +235,8 @@ function loadCanvas(src){
   let im = new Image();
   im.src = src;
   im.onload = ()=>{
-      ctx.drawImage(im,0,0);
-      original = ctx.getImageData(0,0,canvas.width,canvas.height);
+    ctx.drawImage(im,0,0);
+    original = ctx.getImageData(0,0,canvas.width,canvas.height);
   };
 }
 
@@ -267,13 +248,9 @@ function clearHistory(){
 
 // ==================================================
 function resetImage(){
-
   if(!original) return;
-
   blocks=[];
-
   ctx.putImageData(original,0,0);
-
   clearHistory();
   pushUndo();
 }
@@ -281,7 +258,6 @@ function resetImage(){
 
 // ==================================================
 function saveImage(){
-
   let a = document.createElement("a");
   a.href = canvas.toDataURL();
   a.download = "mosaic.png";
