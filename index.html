@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
-<title>Mobile Mosaic – ROI Drag (FINAL FIX)</title>
+<title>Mobile Mosaic – ROI Drag (REAL FINAL)</title>
 
 <style>
 body{
@@ -14,7 +14,7 @@ body{
   align-items:flex-start;
   min-height:100vh;
   font-family:sans-serif;
-  touch-action:none;               /* ⭐ 모바일 핵심 */
+  touch-action:none;
   overscroll-behavior:none;
 }
 
@@ -31,13 +31,12 @@ body{
 
 .canvas-wrap{
   position:relative;
-  touch-action:none;               /* ⭐ 모바일 핵심 */
+  touch-action:none;
 }
 
 canvas{
   width:100%;
   border:1px solid #aaa;
-  touch-action:none;               /* ⭐ 모바일 핵심 */
 }
 
 #overlay{
@@ -66,15 +65,16 @@ canvas{
 
 <br><br>
 
-<div class="canvas-wrap">
+<div class="canvas-wrap" id="canvasWrap">
   <canvas id="canvas"></canvas>
   <canvas id="overlay"></canvas>
 </div>
 </div>
 
 <script>
-document.body.style.overflow="hidden";   // ⭐ 스크롤 완전 차단
+document.body.style.overflow="hidden";
 
+const canvasWrap = document.getElementById("canvasWrap");
 const canvas = document.getElementById("canvas");
 const overlay = document.getElementById("overlay");
 const ctx = canvas.getContext("2d");
@@ -128,20 +128,20 @@ function getPos(clientX, clientY){
 }
 
 // ===============================
-// MOUSE
-canvas.addEventListener("mousedown",e=>{
+// TOUCH + MOUSE (부모에서 처리)
+canvasWrap.addEventListener("mousedown",e=>{
   dragging=true;
   const p=getPos(e.clientX,e.clientY);
   startX=p.x; startY=p.y;
 });
 
-canvas.addEventListener("mousemove",e=>{
+canvasWrap.addEventListener("mousemove",e=>{
   if(!dragging) return;
   const p=getPos(e.clientX,e.clientY);
   drawPreview(startX,startY,p.x,p.y);
 });
 
-canvas.addEventListener("mouseup",e=>{
+canvasWrap.addEventListener("mouseup",e=>{
   if(!dragging) return;
   dragging=false;
   octx.clearRect(0,0,overlay.width,overlay.height);
@@ -149,17 +149,15 @@ canvas.addEventListener("mouseup",e=>{
   addBlock(startX,startY,p.x,p.y);
 });
 
-// ===============================
-// TOUCH (완전 동작)
-canvas.addEventListener("touchstart",e=>{
+canvasWrap.addEventListener("touchstart",e=>{
   e.preventDefault();
-  const t=e.touches[0];
   dragging=true;
+  const t=e.touches[0];
   const p=getPos(t.clientX,t.clientY);
   startX=p.x; startY=p.y;
 },{passive:false});
 
-canvas.addEventListener("touchmove",e=>{
+canvasWrap.addEventListener("touchmove",e=>{
   e.preventDefault();
   if(!dragging) return;
   const t=e.touches[0];
@@ -167,7 +165,7 @@ canvas.addEventListener("touchmove",e=>{
   drawPreview(startX,startY,p.x,p.y);
 },{passive:false});
 
-canvas.addEventListener("touchend",e=>{
+canvasWrap.addEventListener("touchend",e=>{
   e.preventDefault();
   if(!dragging) return;
   dragging=false;
@@ -177,11 +175,6 @@ canvas.addEventListener("touchend",e=>{
   const p=getPos(t.clientX,t.clientY);
   addBlock(startX,startY,p.x,p.y);
 },{passive:false});
-
-canvas.addEventListener("touchcancel",()=>{
-  dragging=false;
-  octx.clearRect(0,0,overlay.width,overlay.height);
-});
 
 // ===============================
 function drawPreview(x1,y1,x2,y2){
@@ -245,14 +238,12 @@ function mosaic(b){
 function pushUndo(){
   undoStack.push(JSON.parse(JSON.stringify(blocks)));
 }
-
 function undo(){
   if(undoStack.length<2) return;
   redoStack.push(undoStack.pop());
   blocks=JSON.parse(JSON.stringify(undoStack.at(-1)));
   redraw();
 }
-
 function redo(){
   if(!redoStack.length) return;
   let s=redoStack.pop();
@@ -260,7 +251,6 @@ function redo(){
   blocks=JSON.parse(JSON.stringify(s));
   redraw();
 }
-
 function resetImage(){
   blocks=[];
   redoStack=[];
@@ -268,7 +258,6 @@ function resetImage(){
   undoStack=[];
   pushUndo();
 }
-
 function saveImage(){
   let a=document.createElement("a");
   a.href=canvas.toDataURL();
