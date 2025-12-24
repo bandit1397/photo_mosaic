@@ -1,66 +1,70 @@
 <!DOCTYPE html>
 <html lang="ko">
-
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Mobile Mosaic – ROI Drag</title>
+<title>Mobile Mosaic – ROI Drag Pro</title>
 
 <style>
 body{
-  font-family:sans-serif;
   margin:0;
-  padding:0;
   background:#eee;
   display:flex;
   justify-content:center;
   align-items:flex-start;
   min-height:100vh;
+  font-family:sans-serif;
 }
 
 .wrapper{
-  background:white;
+  background:#fff;
   padding:20px;
-  margin-top:25px;
+  margin-top:20px;
   border-radius:12px;
   width:95%;
   max-width:950px;
   text-align:center;
-  box-shadow:0 0 8px rgba(0,0,0,0.15);
+  box-shadow:0 0 8px rgba(0,0,0,.15);
 }
 
-#canvas{
+.canvas-wrap{
+  position:relative;
+}
+
+canvas{
   width:100%;
-  height:auto;
   border:1px solid #aaa;
   touch-action:none;
 }
 
-button{
-  padding:10px 15px;
-  margin:5px;
-  font-size:14px;
+#overlay{
+  position:absolute;
+  left:0;
+  top:0;
+  pointer-events:none;
 }
 
-@media(max-width:500px){
-button{ width:46%; }
+.handle{
+  position:absolute;
+  width:12px;
+  height:12px;
+  background:#0ea5e9;
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+  pointer-events:auto;
 }
 </style>
 </head>
 
 <body>
-
 <div class="wrapper">
-
 <h2>비식별화(모자이크)</h2>
 
-<input type="file" id="upload" accept="image/*">
+<input type="file" id="upload" accept="image/*"><br><br>
 
-<div style="margin:10px 0;">
-  모자이크 강도 :
-  <input id="rate" type="range" min="1" max="40" value="15"/>
-  <span id="rateValue">15</span>
-</div>
+모자이크 강도 :
+<input type="range" id="rate" min="1" max="40" value="15">
+<span id="rateValue">15</span><br><br>
 
 <button onclick="saveImage()">저장</button>
 <button onclick="undo()">Undo</button>
@@ -68,210 +72,168 @@ button{ width:46%; }
 <button onclick="resetImage()">처음으로</button>
 
 <br><br>
-<canvas id="canvas"></canvas>
 
+<div class="canvas-wrap">
+  <canvas id="canvas"></canvas>
+  <canvas id="overlay"></canvas>
+</div>
 </div>
 
 <script>
+const canvas = document.getElementById("canvas");
+const overlay = document.getElementById("overlay");
+const ctx = canvas.getContext("2d");
+const octx = overlay.getContext("2d");
 
-let canvas = document.getElementById("canvas");
-let ctx = canvas.getContext("2d");
 let img = new Image();
-
 let original = null;
-let undoStack = [];
-let redoStack = [];
 let blocks = [];
-
+let undoStack=[], redoStack=[];
 let rate = 15;
+
 const rateSlider = document.getElementById("rate");
-const rateValue  = document.getElementById("rateValue");
+const rateValue = document.getElementById("rateValue");
 
-let isDragging = false;
-let startX = 0, startY = 0;
+let dragging=false,startX=0,startY=0;
 
-
-// ==================================================
-document.getElementById("upload").addEventListener("change", e=>{
+// ===============================
+document.getElementById("upload").onchange=e=>{
   img.src = URL.createObjectURL(e.target.files[0]);
-  img.onload = ()=>{
-    const MAX = 1500;
-    let w = img.width;
-    let h = img.height;
-
-    if(w>MAX){ h = h*(MAX/w); w = MAX;}
-    if(h>MAX){ w = w*(MAX/h); h = MAX;}
-
-    canvas.width = w;
-    canvas.height = h;
-
-    ctx.drawImage(img,0,0,w,h);
-    original = ctx.getImageData(0,0,w,h);
-
+  img.onload=()=>{
+    canvas.width=overlay.width=img.width;
+    canvas.height=overlay.height=img.height;
+    ctx.drawImage(img,0,0);
+    original=ctx.getImageData(0,0,canvas.width,canvas.height);
     blocks=[];
-    clearHistory();
+    undoStack=[];
     pushUndo();
   };
-});
-
-
-// ==================================================
-rateSlider.oninput = ()=>{
-  rate = Number(rateSlider.value);
-  rateValue.innerText = rate;
-  redrawFromOriginal();
 };
 
+// ===============================
+rateSlider.oninput=()=>{
+  rate=+rateSlider.value;
+  rateValue.innerText=rate;
+  redraw();
+};
 
-// ==================================================
-// ROI DRAG (Mouse + Touch)
-// ==================================================
-function getPos(e){
-  const r = canvas.getBoundingClientRect();
-  const x = (e.clientX - r.left) * (canvas.width / r.width);
-  const y = (e.clientY - r.top)  * (canvas.height / r.height);
-  return {x,y};
+// ===============================
+function pos(e){
+  const r=canvas.getBoundingClientRect();
+  return {
+    x:(e.clientX-r.left)*(canvas.width/r.width),
+    y:(e.clientY-r.top)*(canvas.height/r.height)
+  };
 }
 
-canvas.addEventListener("mousedown", e=>{
-  isDragging = true;
-  const p = getPos(e);
-  startX = p.x;
-  startY = p.y;
-});
+canvas.onmousedown=e=>{
+  dragging=true;
+  const p=pos(e);
+  startX=p.x; startY=p.y;
+};
 
-canvas.addEventListener("mouseup", e=>{
-  if(!isDragging) return;
-  isDragging = false;
-  const p = getPos(e);
-  createBlockFromDrag(startX,startY,p.x,p.y);
-});
+canvas.onmousemove=e=>{
+  if(!dragging) return;
+  const p=pos(e);
+  drawPreview(startX,startY,p.x,p.y);
+};
 
-canvas.addEventListener("touchstart", e=>{
-  e.preventDefault();
-  const t = e.touches[0];
-  isDragging = true;
-  const p = getPos(t);
-  startX = p.x;
-  startY = p.y;
-},{passive:false});
+canvas.onmouseup=e=>{
+  if(!dragging) return;
+  dragging=false;
+  octx.clearRect(0,0,overlay.width,overlay.height);
+  const p=pos(e);
+  addBlock(startX,startY,p.x,p.y);
+};
 
-canvas.addEventListener("touchend", e=>{
-  if(!isDragging) return;
-  isDragging = false;
-  const t = e.changedTouches[0];
-  const p = getPos(t);
-  createBlockFromDrag(startX,startY,p.x,p.y);
-},{passive:false});
+// ===============================
+function drawPreview(x1,y1,x2,y2){
+  octx.clearRect(0,0,overlay.width,overlay.height);
+  octx.setLineDash([6,4]);
+  octx.strokeStyle="rgba(0,0,255,.8)";
+  octx.strokeRect(
+    Math.min(x1,x2),
+    Math.min(y1,y2),
+    Math.abs(x2-x1),
+    Math.abs(y2-y1)
+  );
+}
 
-
-// ==================================================
-function createBlockFromDrag(x1,y1,x2,y2){
-
-  let left = Math.min(x1,x2);
-  let top  = Math.min(y1,y2);
-  let w = Math.abs(x2-x1);
-  let h = Math.abs(y2-y1);
-
-  if(w<5 || h<5) return;
-
-  blocks.push({left,top,w,h});
-  redrawFromOriginal();
+// ===============================
+function addBlock(x1,y1,x2,y2){
+  let w=Math.abs(x2-x1), h=Math.abs(y2-y1);
+  if(w<5||h<5) return;
+  blocks.push({
+    left:Math.min(x1,x2),
+    top:Math.min(y1,y2),
+    w,h
+  });
+  redraw();
   pushUndo();
 }
 
-
-// ==================================================
-function redrawFromOriginal(){
+// ===============================
+function redraw(){
   ctx.putImageData(original,0,0);
-  blocks.forEach(b=>{
-    mosaic(b.left,b.top,b.w,b.h);
-  });
+  blocks.forEach(b=>mosaic(b));
 }
 
-
-// ==================================================
-function mosaic(left,top,w,h){
-
-  let temp = document.createElement("canvas");
-  temp.width = w;
-  temp.height = h;
-  let tctx = temp.getContext("2d");
-
-  tctx.drawImage(canvas,left,top,w,h,0,0,w,h);
-
-  for(let i=0;i<w;i+=rate){
-    for(let j=0;j<h;j+=rate){
-      let px = tctx.getImageData(i,j,1,1).data;
-      tctx.fillStyle = `rgb(${px[0]},${px[1]},${px[2]})`;
-      tctx.fillRect(i,j,rate,rate);
+function mosaic(b){
+  let t=document.createElement("canvas");
+  t.width=b.w; t.height=b.h;
+  let tctx=t.getContext("2d");
+  tctx.drawImage(canvas,b.left,b.top,b.w,b.h,0,0,b.w,b.h);
+  for(let x=0;x<b.w;x+=rate){
+    for(let y=0;y<b.h;y+=rate){
+      let d=tctx.getImageData(x,y,1,1).data;
+      tctx.fillStyle=`rgb(${d[0]},${d[1]},${d[2]})`;
+      tctx.fillRect(x,y,rate,rate);
     }
   }
-
-  ctx.drawImage(temp,left,top);
+  ctx.drawImage(t,b.left,b.top);
 }
 
-
-// ==================================================
+// ===============================
 function pushUndo(){
   undoStack.push(canvas.toDataURL());
   redoStack=[];
 }
 
 function undo(){
-  if(undoStack.length<=1) return;
+  if(undoStack.length<2) return;
   redoStack.push(undoStack.pop());
-  loadCanvas(undoStack.at(-1));
+  load(undoStack.at(-1));
 }
 
 function redo(){
-  if(redoStack.length===0) return;
-  let x = redoStack.pop();
-  undoStack.push(x);
-  loadCanvas(x);
+  if(!redoStack.length) return;
+  let s=redoStack.pop();
+  undoStack.push(s);
+  load(s);
 }
 
-function loadCanvas(src){
-  let im = new Image();
-  im.src = src;
-  im.onload = ()=>{
-    ctx.drawImage(im,0,0);
-    original = ctx.getImageData(0,0,canvas.width,canvas.height);
+function load(src){
+  let i=new Image();
+  i.src=src;
+  i.onload=()=>{
+    ctx.drawImage(i,0,0);
+    original=ctx.getImageData(0,0,canvas.width,canvas.height);
   };
 }
 
-function clearHistory(){
-  undoStack=[];
-  redoStack=[];
-}
-
-
-// ==================================================
 function resetImage(){
-  if(!original) return;
   blocks=[];
-  ctx.putImageData(original,0,0);
-  clearHistory();
+  redraw();
+  undoStack=[];
   pushUndo();
 }
 
-
-// ==================================================
 function saveImage(){
-  let a = document.createElement("a");
-  a.href = canvas.toDataURL();
-  a.download = "mosaic.png";
+  let a=document.createElement("a");
+  a.href=canvas.toDataURL();
+  a.download="mosaic.png";
   a.click();
 }
-
-
-// ==================================================
-document.addEventListener("keydown", e=>{
-  if(e.ctrlKey && e.key==="z") undo();
-  if(e.ctrlKey && e.key==="y") redo();
-});
-
 </script>
-
 </body>
 </html>
