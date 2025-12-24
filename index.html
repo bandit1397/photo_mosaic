@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Mobile Mosaic – ROI Drag Pro</title>
+<title>Mobile Mosaic – ROI Drag Pro (FULL)</title>
 
 <style>
 body{
@@ -17,10 +17,10 @@ body{
 }
 .wrapper{
   background:#fff;
-  padding:20px;
-  margin-top:20px;
+  padding:16px;
+  margin:10px;
   border-radius:12px;
-  width:95%;
+  width:100%;
   max-width:950px;
   text-align:center;
   box-shadow:0 0 8px rgba(0,0,0,.15);
@@ -29,13 +29,14 @@ body{
 canvas{
   width:100%;
   border:1px solid #aaa;
-  touch-action:none;
+  touch-action:none; /* ⭐ 모바일 핵심 */
 }
 #overlay{
   position:absolute;
   left:0; top:0;
   pointer-events:none;
 }
+button{margin:4px;}
 </style>
 </head>
 
@@ -68,7 +69,7 @@ const overlay = document.getElementById("overlay");
 const ctx = canvas.getContext("2d");
 const octx = overlay.getContext("2d");
 
-/* ⭐ hidden 원본 캔버스 (핵심) */
+/* ⭐ 원본 보존용 캔버스 */
 const sourceCanvas = document.createElement("canvas");
 const sctx = sourceCanvas.getContext("2d");
 
@@ -83,7 +84,9 @@ const rateValue = document.getElementById("rateValue");
 
 let dragging=false,startX=0,startY=0;
 
-// ===============================
+// =================================
+// 파일 업로드
+// =================================
 document.getElementById("upload").onchange=e=>{
   img.src = URL.createObjectURL(e.target.files[0]);
   img.onload=()=>{
@@ -91,7 +94,7 @@ document.getElementById("upload").onchange=e=>{
     canvas.height = overlay.height = sourceCanvas.height = img.height;
 
     ctx.drawImage(img,0,0);
-    sctx.drawImage(img,0,0); // ⭐ 원본 보존
+    sctx.drawImage(img,0,0);
 
     blocks=[];
     undoStack=[];
@@ -100,15 +103,19 @@ document.getElementById("upload").onchange=e=>{
   };
 };
 
-// ===============================
+// =================================
+// 슬라이더
+// =================================
 rateSlider.oninput=()=>{
   rate=+rateSlider.value;
   rateValue.innerText=rate;
   redraw();
 };
 
-// ===============================
-function pos(e){
+// =================================
+// 좌표 변환 (PC/모바일 동일)
+// =================================
+function getPos(e){
   const r=canvas.getBoundingClientRect();
   return {
     x:(e.clientX-r.left)*(canvas.width/r.width),
@@ -116,27 +123,40 @@ function pos(e){
   };
 }
 
-canvas.onmousedown=e=>{
+// =================================
+// ⭐ Pointer Events (핵심)
+// =================================
+canvas.addEventListener("pointerdown",e=>{
+  e.preventDefault();
+  canvas.setPointerCapture(e.pointerId);
   dragging=true;
-  const p=pos(e);
+  const p=getPos(e);
   startX=p.x; startY=p.y;
-};
+});
 
-canvas.onmousemove=e=>{
+canvas.addEventListener("pointermove",e=>{
   if(!dragging) return;
-  const p=pos(e);
+  const p=getPos(e);
   drawPreview(startX,startY,p.x,p.y);
-};
+});
 
-canvas.onmouseup=e=>{
+canvas.addEventListener("pointerup",e=>{
   if(!dragging) return;
   dragging=false;
+  canvas.releasePointerCapture(e.pointerId);
   octx.clearRect(0,0,overlay.width,overlay.height);
-  const p=pos(e);
+  const p=getPos(e);
   addBlock(startX,startY,p.x,p.y);
-};
+});
 
-// ===============================
+canvas.addEventListener("pointercancel",()=>{
+  dragging=false;
+  octx.clearRect(0,0,overlay.width,overlay.height);
+});
+
+// =================================
+// ROI 미리보기
+// =================================
 function drawPreview(x1,y1,x2,y2){
   octx.clearRect(0,0,overlay.width,overlay.height);
   octx.setLineDash([6,4]);
@@ -149,7 +169,9 @@ function drawPreview(x1,y1,x2,y2){
   );
 }
 
-// ===============================
+// =================================
+// 블록 추가
+// =================================
 function addBlock(x1,y1,x2,y2){
   let w=Math.abs(x2-x1), h=Math.abs(y2-y1);
   if(w<5||h<5) return;
@@ -165,20 +187,23 @@ function addBlock(x1,y1,x2,y2){
   pushUndo();
 }
 
-// ===============================
+// =================================
+// 다시 그리기
+// =================================
 function redraw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(sourceCanvas,0,0);
   blocks.forEach(b=>mosaic(b));
 }
 
-// ===============================
+// =================================
+// 모자이크 처리
+// =================================
 function mosaic(b){
   let t=document.createElement("canvas");
   t.width=b.w; t.height=b.h;
   let tctx=t.getContext("2d");
 
-  /* ⭐ 반드시 sourceCanvas 사용 */
   tctx.drawImage(
     sourceCanvas,
     b.left, b.top, b.w, b.h,
@@ -195,7 +220,9 @@ function mosaic(b){
   ctx.drawImage(t,b.left,b.top);
 }
 
-// ===============================
+// =================================
+// Undo / Redo / Reset
+// =================================
 function pushUndo(){
   undoStack.push(JSON.parse(JSON.stringify(blocks)));
 }
@@ -203,26 +230,29 @@ function pushUndo(){
 function undo(){
   if(undoStack.length<2) return;
   redoStack.push(undoStack.pop());
-  blocks = JSON.parse(JSON.stringify(undoStack.at(-1)));
+  blocks=JSON.parse(JSON.stringify(undoStack.at(-1)));
   redraw();
 }
 
 function redo(){
   if(!redoStack.length) return;
-  let s = redoStack.pop();
+  let s=redoStack.pop();
   undoStack.push(s);
-  blocks = JSON.parse(JSON.stringify(s));
+  blocks=JSON.parse(JSON.stringify(s));
   redraw();
 }
 
 function resetImage(){
   blocks=[];
   redoStack=[];
-  redraw();
   undoStack=[];
+  redraw();
   pushUndo();
 }
 
+// =================================
+// 저장
+// =================================
 function saveImage(){
   let a=document.createElement("a");
   a.href=canvas.toDataURL();
