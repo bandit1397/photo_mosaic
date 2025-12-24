@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>Mobile Mosaic – ROI Drag Pro (Mobile FIX)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>Mobile Mosaic – ROI Drag (FINAL FIX)</title>
 
 <style>
 body{
@@ -14,7 +14,10 @@ body{
   align-items:flex-start;
   min-height:100vh;
   font-family:sans-serif;
+  touch-action:none;               /* ⭐ 모바일 핵심 */
+  overscroll-behavior:none;
 }
+
 .wrapper{
   background:#fff;
   padding:20px;
@@ -25,15 +28,22 @@ body{
   text-align:center;
   box-shadow:0 0 8px rgba(0,0,0,.15);
 }
-.canvas-wrap{position:relative;}
+
+.canvas-wrap{
+  position:relative;
+  touch-action:none;               /* ⭐ 모바일 핵심 */
+}
+
 canvas{
   width:100%;
   border:1px solid #aaa;
-  touch-action:none; /* ⭐ 중요 */
+  touch-action:none;               /* ⭐ 모바일 핵심 */
 }
+
 #overlay{
   position:absolute;
-  left:0; top:0;
+  left:0;
+  top:0;
   pointer-events:none;
 }
 </style>
@@ -63,6 +73,8 @@ canvas{
 </div>
 
 <script>
+document.body.style.overflow="hidden";   // ⭐ 스크롤 완전 차단
+
 const canvas = document.getElementById("canvas");
 const overlay = document.getElementById("overlay");
 const ctx = canvas.getContext("2d");
@@ -138,7 +150,7 @@ canvas.addEventListener("mouseup",e=>{
 });
 
 // ===============================
-// TOUCH ⭐ 핵심 추가
+// TOUCH (완전 동작)
 canvas.addEventListener("touchstart",e=>{
   e.preventDefault();
   const t=e.touches[0];
@@ -161,9 +173,15 @@ canvas.addEventListener("touchend",e=>{
   dragging=false;
   octx.clearRect(0,0,overlay.width,overlay.height);
   const t=e.changedTouches[0];
+  if(!t) return;
   const p=getPos(t.clientX,t.clientY);
   addBlock(startX,startY,p.x,p.y);
 },{passive:false});
+
+canvas.addEventListener("touchcancel",()=>{
+  dragging=false;
+  octx.clearRect(0,0,overlay.width,overlay.height);
+});
 
 // ===============================
 function drawPreview(x1,y1,x2,y2){
