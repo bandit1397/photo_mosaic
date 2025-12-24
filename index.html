@@ -158,7 +158,8 @@ canvas.addEventListener("pointercancel",()=>{
 function drawPreview(x1,y1,x2,y2){
   octx.clearRect(0,0,overlay.width,overlay.height);
   octx.setLineDash([6,4]);
-  octx.strokeStyle="rgba(0,0,255,.8)";
+  octx.lineWidth = isMobile ? 6 : 2;   // ← 여기
+  octx.strokeStyle = "rgba(0,120,255,0.9)";
   octx.strokeRect(
     Math.min(x1,x2),
     Math.min(y1,y2),
