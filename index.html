@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
-<title>Mobile Mosaic – ROI Drag (REAL FINAL)</title>
+<title>Mobile Mosaic – ROI Drag (POINTER FINAL)</title>
 
 <style>
 body{
@@ -37,6 +37,7 @@ body{
 canvas{
   width:100%;
   border:1px solid #aaa;
+  touch-action:none;
 }
 
 #overlay{
@@ -65,16 +66,15 @@ canvas{
 
 <br><br>
 
-<div class="canvas-wrap" id="canvasWrap">
+<div class="canvas-wrap">
   <canvas id="canvas"></canvas>
   <canvas id="overlay"></canvas>
 </div>
 </div>
 
 <script>
-document.body.style.overflow="hidden";
+document.body.style.overflow = "hidden";
 
-const canvasWrap = document.getElementById("canvasWrap");
 const canvas = document.getElementById("canvas");
 const overlay = document.getElementById("overlay");
 const ctx = canvas.getContext("2d");
@@ -92,95 +92,80 @@ let rate = 15;
 const rateSlider = document.getElementById("rate");
 const rateValue = document.getElementById("rateValue");
 
-let dragging=false,startX=0,startY=0;
+let dragging = false;
+let startX = 0, startY = 0;
 
 // ===============================
-document.getElementById("upload").onchange=e=>{
+document.getElementById("upload").onchange = e => {
   img.src = URL.createObjectURL(e.target.files[0]);
-  img.onload=()=>{
+  img.onload = () => {
     canvas.width = overlay.width = sourceCanvas.width = img.width;
     canvas.height = overlay.height = sourceCanvas.height = img.height;
 
     ctx.drawImage(img,0,0);
     sctx.drawImage(img,0,0);
 
-    blocks=[];
-    undoStack=[];
-    redoStack=[];
+    blocks = [];
+    undoStack = [];
+    redoStack = [];
     pushUndo();
   };
 };
 
 // ===============================
-rateSlider.oninput=()=>{
-  rate=+rateSlider.value;
-  rateValue.innerText=rate;
+rateSlider.oninput = () => {
+  rate = +rateSlider.value;
+  rateValue.innerText = rate;
   redraw();
 };
 
 // ===============================
-function getPos(clientX, clientY){
+function getPos(e){
   const r = canvas.getBoundingClientRect();
   return {
-    x:(clientX-r.left)*(canvas.width/r.width),
-    y:(clientY-r.top)*(canvas.height/r.height)
+    x:(e.clientX - r.left) * (canvas.width / r.width),
+    y:(e.clientY - r.top)  * (canvas.height / r.height)
   };
 }
 
 // ===============================
-// TOUCH + MOUSE (부모에서 처리)
-canvasWrap.addEventListener("mousedown",e=>{
-  dragging=true;
-  const p=getPos(e.clientX,e.clientY);
-  startX=p.x; startY=p.y;
+// POINTER EVENTS (PC + MOBILE 통합)
+canvas.addEventListener("pointerdown", e=>{
+  e.preventDefault();
+  canvas.setPointerCapture(e.pointerId);
+  dragging = true;
+  const p = getPos(e);
+  startX = p.x;
+  startY = p.y;
 });
 
-canvasWrap.addEventListener("mousemove",e=>{
+canvas.addEventListener("pointermove", e=>{
   if(!dragging) return;
-  const p=getPos(e.clientX,e.clientY);
-  drawPreview(startX,startY,p.x,p.y);
+  const p = getPos(e);
+  requestAnimationFrame(()=>{
+    drawPreview(startX, startY, p.x, p.y);
+  });
 });
 
-canvasWrap.addEventListener("mouseup",e=>{
+canvas.addEventListener("pointerup", e=>{
   if(!dragging) return;
-  dragging=false;
+  dragging = false;
   octx.clearRect(0,0,overlay.width,overlay.height);
-  const p=getPos(e.clientX,e.clientY);
-  addBlock(startX,startY,p.x,p.y);
+  const p = getPos(e);
+  addBlock(startX, startY, p.x, p.y);
 });
 
-canvasWrap.addEventListener("touchstart",e=>{
-  e.preventDefault();
-  dragging=true;
-  const t=e.touches[0];
-  const p=getPos(t.clientX,t.clientY);
-  startX=p.x; startY=p.y;
-},{passive:false});
-
-canvasWrap.addEventListener("touchmove",e=>{
-  e.preventDefault();
-  if(!dragging) return;
-  const t=e.touches[0];
-  const p=getPos(t.clientX,t.clientY);
-  drawPreview(startX,startY,p.x,p.y);
-},{passive:false});
-
-canvasWrap.addEventListener("touchend",e=>{
-  e.preventDefault();
-  if(!dragging) return;
-  dragging=false;
+canvas.addEventListener("pointercancel", ()=>{
+  dragging = false;
   octx.clearRect(0,0,overlay.width,overlay.height);
-  const t=e.changedTouches[0];
-  if(!t) return;
-  const p=getPos(t.clientX,t.clientY);
-  addBlock(startX,startY,p.x,p.y);
-},{passive:false});
+});
 
 // ===============================
 function drawPreview(x1,y1,x2,y2){
   octx.clearRect(0,0,overlay.width,overlay.height);
   octx.setLineDash([6,4]);
-  octx.strokeStyle="rgba(0,0,255,.8)";
+  octx.lineWidth = 2;
+  octx.strokeStyle = "rgba(0,0,255,.9)";
   octx.strokeRect(
     Math.min(x1,x2),
     Math.min(y1,y2),
@@ -191,16 +176,17 @@ function drawPreview(x1,y1,x2,y2){
 
 // ===============================
 function addBlock(x1,y1,x2,y2){
-  let w=Math.abs(x2-x1), h=Math.abs(y2-y1);
-  if(w<5||h<5) return;
+  const w = Math.abs(x2-x1);
+  const h = Math.abs(y2-y1);
+  if(w < 5 || h < 5) return;
 
   blocks.push({
-    left:Math.min(x1,x2),
-    top:Math.min(y1,y2),
-    w,h
+    left: Math.min(x1,x2),
+    top:  Math.min(y1,y2),
+    w, h
   });
 
-  redoStack=[];
+  redoStack = [];
   redraw();
   pushUndo();
 }
@@ -209,59 +195,64 @@ function addBlock(x1,y1,x2,y2){
 function redraw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(sourceCanvas,0,0);
-  blocks.forEach(b=>mosaic(b));
+  blocks.forEach(b => mosaic(b));
 }
 
 // ===============================
 function mosaic(b){
-  let t=document.createElement("canvas");
-  t.width=b.w; t.height=b.h;
-  let tctx=t.getContext("2d");
+  const t = document.createElement("canvas");
+  t.width = b.w;
+  t.height = b.h;
+  const tctx = t.getContext("2d");
 
   tctx.drawImage(
     sourceCanvas,
-    b.left,b.top,b.w,b.h,
-    0,0,b.w,b.h
+    b.left, b.top, b.w, b.h,
+    0, 0, b.w, b.h
   );
 
-  for(let x=0;x<b.w;x+=rate){
-    for(let y=0;y<b.h;y+=rate){
-      let d=tctx.getImageData(x,y,1,1).data;
-      tctx.fillStyle=`rgb(${d[0]},${d[1]},${d[2]})`;
+  for(let x=0; x<b.w; x+=rate){
+    for(let y=0; y<b.h; y+=rate){
+      const d = tctx.getImageData(x,y,1,1).data;
+      tctx.fillStyle = `rgb(${d[0]},${d[1]},${d[2]})`;
       tctx.fillRect(x,y,rate,rate);
     }
   }
-  ctx.drawImage(t,b.left,b.top);
+  ctx.drawImage(t, b.left, b.top);
 }
 
 // ===============================
 function pushUndo(){
   undoStack.push(JSON.parse(JSON.stringify(blocks)));
 }
+
 function undo(){
-  if(undoStack.length<2) return;
+  if(undoStack.length < 2) return;
   redoStack.push(undoStack.pop());
-  blocks=JSON.parse(JSON.stringify(undoStack.at(-1)));
+  blocks = JSON.parse(JSON.stringify(undoStack.at(-1)));
   redraw();
 }
+
 function redo(){
   if(!redoStack.length) return;
-  let s=redoStack.pop();
+  const s = redoStack.pop();
   undoStack.push(s);
-  blocks=JSON.parse(JSON.stringify(s));
+  blocks = JSON.parse(JSON.stringify(s));
   redraw();
 }
+
 function resetImage(){
-  blocks=[];
-  redoStack=[];
+  blocks = [];
+  redoStack = [];
   redraw();
-  undoStack=[];
+  undoStack = [];
   pushUndo();
 }
+
 function saveImage(){
-  let a=document.createElement("a");
-  a.href=canvas.toDataURL();
-  a.download="mosaic.png";
+  const a = document.createElement("a");
+  a.href = canvas.toDataURL();
+  a.download = "mosaic.png";
   a.click();
 }
 </script>
