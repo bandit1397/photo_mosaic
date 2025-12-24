@@ -162,7 +162,7 @@ function drawPreview(x1,y1,x2,y2){
   const scale = canvas.width / rect.width;
 
   octx.setLineDash([6 * scale, 4 * scale]);
-  octx.lineWidth = (isMobile ? 12 : 3) * scale;
+  octx.lineWidth = (isMobile ? 8 : 3) * scale;
   octx.strokeStyle = "rgba(0,120,255,0.95)";
 
   octx.strokeRect(
