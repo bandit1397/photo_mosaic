@@ -160,10 +160,16 @@ function drawPreview(x1,y1,x2,y2){
 
   const rect = canvas.getBoundingClientRect();
   const scale = canvas.width / rect.width;
+  const dpr = window.devicePixelRatio || 1;
 
-  octx.setLineDash([6 * scale, 4 * scale]);
-  octx.lineWidth = (isMobile ? 12 : 3) * scale;
-  octx.strokeStyle = "rgba(0,120,255,0.95)";
+  octx.setLineDash([
+    6 * scale * dpr,
+    4 * scale * dpr
+  ]);
+
+  octx.lineWidth = (isMobile ? 14 : 3) * scale * dpr;
+
+  octx.strokeStyle = "rgba(0,120,255,1)"; // 투명도 제거 → 선명도↑
 
   octx.strokeRect(
     Math.min(x1,x2),
@@ -172,6 +178,7 @@ function drawPreview(x1,y1,x2,y2){
     Math.abs(y2-y1)
   );
 }
+
 
 // ===================================
 function addBlock(x1,y1,x2,y2){
