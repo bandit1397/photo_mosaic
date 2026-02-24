@@ -1,34 +1,81 @@
+import http.server
+import socketserver
+import threading
+import webbrowser
 import os
 import sys
-import webbrowser
-import subprocess
+import socket
+import time
 
+# -----------------------------
+# PyInstaller 경로 대응
+# -----------------------------
 def resource_path(relative_path):
-    """PyInstaller exe 내부와 일반 실행 환경 모두 대응"""
     try:
-        base_path = sys._MEIPASS  # exe 내부
+        base_path = sys._MEIPASS
     except AttributeError:
-        base_path = os.path.abspath(".")  # 일반 실행
+        base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-def open_in_chrome(html_file_path):
-    chrome_paths = [
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-        r"C:\Users\{}\\AppData\Local\Google\Chrome\Application\chrome.exe".format(os.getlogin())
-    ]
-    chrome_path = next((p for p in chrome_paths if os.path.exists(p)), None)
-    if chrome_path is None:
-        webbrowser.open(html_file_path)
-        return
-    subprocess.Popen([chrome_path, html_file_path])
+# -----------------------------
+# 로그 완전 차단 핸들러
+# -----------------------------
+class SilentHandler(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, format, *args):
+        return  # 로그 출력 완전 차단
 
+# -----------------------------
+# 서버 클래스 (포트 재사용 가능)
+# -----------------------------
+class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    allow_reuse_address = True
+
+# -----------------------------
+# 사용 가능한 포트 자동 탐색
+# -----------------------------
+def find_free_port():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+# -----------------------------
+# 서버 시작
+# -----------------------------
+def start_server(port, directory):
+    os.chdir(directory)
+
+    with ThreadingTCPServer(("127.0.0.1", port), SilentHandler) as httpd:
+        httpd.serve_forever()
+
+# -----------------------------
+# 메인 실행
+# -----------------------------
 if __name__ == "__main__":
-    html_file = resource_path("index.html")
-    if not os.path.exists(html_file):
-        print("index.html 파일이 없습니다!", html_file)
+
+    html_path = resource_path("index.html")
+
+    if not os.path.exists(html_path):
+        print("❌ index.html 파일이 없습니다.")
+        print("현재 경로:", html_path)
         sys.exit(1)
-    html_file_url = f"file:///{html_file.replace(os.sep, '/')}"
-    print("브라우저에서 열 URL:", html_file_url)
-    open_in_chrome(html_file_url)
-    print("브라우저에서 index.html 실행 완료")
+
+    base_dir = os.path.dirname(html_path)
+    port = find_free_port()
+
+    server_thread = threading.Thread(
+        target=start_server,
+        args=(port, base_dir),
+        daemon=True
+    )
+    server_thread.start()
+
+    time.sleep(1)
+
+    url = f"http://127.0.0.1:{port}/index.html"
+    webbrowser.open(url)
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
